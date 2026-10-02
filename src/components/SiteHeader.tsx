@@ -4,6 +4,8 @@ import Link from "next/link";
 
 import { useMe } from "@/lib/client/use-me";
 
+import { ThemeToggle } from "./ThemeToggle";
+
 export function SiteHeader() {
   const me = useMe();
   return (
@@ -11,10 +13,17 @@ export function SiteHeader() {
       <Link href="/" className="brand">
         Matching Pairs
       </Link>
-      <nav aria-label="Account">
-        {me?.authEnabled &&
-          (me.user ? <Link href="/profile">{me.user.name}</Link> : <Link href="/auth/sign-in">Sign in</Link>)}
-      </nav>
+      <div className="site-header-end">
+        <nav aria-label="Account">
+          {me?.authEnabled &&
+            (me.user ? (
+              <Link href="/profile">{me.user.name}</Link>
+            ) : (
+              <Link href="/auth/sign-in">Sign in</Link>
+            ))}
+        </nav>
+        <ThemeToggle />
+      </div>
     </header>
   );
 }

@@ -22,10 +22,13 @@ export default function HomePage() {
               data-face={face || undefined}
               style={{ "--i": i } as React.CSSProperties}
             >
-              {face ? (
-                // eslint-disable-next-line @next/next/no-img-element -- decorative static image
-                <img src={`/hero/${face}.webp`} alt="" />
-              ) : null}
+              <span className="tile-inner">
+                <span className="tile-back" />
+                {face ? (
+                  // eslint-disable-next-line @next/next/no-img-element -- decorative static image
+                  <img className="tile-face" src={`/hero/${face}.webp`} alt="" />
+                ) : null}
+              </span>
             </span>
           ))}
         </div>
