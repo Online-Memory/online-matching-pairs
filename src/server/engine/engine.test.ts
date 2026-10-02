@@ -1,0 +1,367 @@
+import fc from "fast-check";
+import { describe, expect, it } from "vitest";
+
+import {
+  applyAction,
+  createTable,
+  EngineError,
+  nextDueAt,
+  RULES,
+  seededRng,
+  shuffleBoard,
+  tick,
+  toView,
+  type Action,
+  type GameState,
+  type Identity,
+} from ".";
+
+const T0 = 1_700_000_000_000;
+const id = (n: number): Identity => ({ playerId: `p${n}`, userId: n === 1 ? "user-1" : null, name: `P${n}` });
+
+function act(state: GameState, actor: string, action: Action, now: number) {
+  return applyAction(state, actor, action, now, seededRng(42)).state;
+}
+
+function lobby(players = 2, opts: Partial<{ pairs: number; turnSeconds: number; maxPlayers: number }> = {}) {
+  let s = createTable(
+    "ABC234",
+    {
+      theme: "001",
+      pairs: opts.pairs ?? 8,
+      maxPlayers: opts.maxPlayers ?? 4,
+      turnSeconds: opts.turnSeconds ?? 20,
+    },
+    id(1),
+    T0,
+  );
+  for (let n = 2; n <= players; n++) s = act(s, `p${n}`, { type: "join", identity: id(n) }, T0);
+  return s;
+}
+
+function started(players = 2, opts: Parameters<typeof lobby>[1] = {}) {
+  return act(lobby(players, opts), "p1", { type: "start" }, T0);
+}
+
+/** Two positions holding the same face, and two holding different faces (test-only peek at the secret). */
+function pairOf(s: GameState, face?: number): [number, number] {
+  const target = face ?? s.board.find((t) => t.state === "hidden")!.face;
+  const ids = s.board.flatMap((t, i) => (t.face === target && t.state === "hidden" ? [i] : []));
+  return [ids[0]!, ids[1]!];
+}
+function mismatch(s: GameState): [number, number] {
+  const a = s.board.findIndex((t) => t.state === "hidden");
+  const b = s.board.findIndex((t, i) => t.state === "hidden" && t.face !== s.board[a]!.face && i !== a);
+  return [a, b];
+}
+
+function expectError(fn: () => unknown, code: string) {
+  try {
+    fn();
+  } catch (e) {
+    expect(e).toBeInstanceOf(EngineError);
+    expect((e as EngineError).code).toBe(code);
+    return;
+  }
+  throw new Error(`expected EngineError ${code}`);
+}
+
+describe("lobby", () => {
+  it("seats players in join order up to maxPlayers", () => {
+    const s = lobby(2, { maxPlayers: 2 });
+    expect(s.players.map((p) => [p.id, p.seat])).toEqual([
+      ["p1", 0],
+      ["p2", 1],
+    ]);
+    expectError(() => act(s, "p3", { type: "join", identity: id(3) }, T0), "table_full");
+  });
+
+  it("join is idempotent for a seated player", () => {
+    const s = lobby(2);
+    const again = applyAction(s, "p2", { type: "join", identity: id(2) }, T0, seededRng(1));
+    expect(again.events).toEqual([]);
+    expect(again.state.players).toHaveLength(2);
+  });
+
+  it("only the host can start", () => {
+    expectError(() => act(lobby(2), "p2", { type: "start" }, T0), "not_host");
+  });
+
+  it("host leaving the lobby hands the table to the next seat", () => {
+    const s = act(lobby(3), "p1", { type: "leave" }, T0);
+    expect(s.hostId).toBe("p2");
+    expect(s.players.map((p) => p.id)).toEqual(["p2", "p3"]);
+  });
+
+  it("an idle lobby is abandoned after 30 minutes", () => {
+    const s = lobby(1);
+    expect(tick(s, T0 + RULES.lobbyIdleMs - 1).state.status).toBe("lobby");
+    expect(tick(s, T0 + RULES.lobbyIdleMs).state.status).toBe("abandoned");
+  });
+
+  it("cannot join once the game started", () => {
+    expectError(() => act(started(2), "p3", { type: "join", identity: id(3) }, T0), "already_started");
+  });
+});
+
+describe("start", () => {
+  it("deals every face exactly twice and gives the first seat the turn", () => {
+    const s = started(2, { pairs: 12 });
+    expect(s.board).toHaveLength(24);
+    const counts = new Map<number, number>();
+    for (const t of s.board) counts.set(t.face, (counts.get(t.face) ?? 0) + 1);
+    expect([...counts.values()].every((c) => c === 2)).toBe(true);
+    expect(s.turn).toEqual({ playerId: "p1", deadline: T0 + 20_000 });
+  });
+
+  it("solo practice is allowed", () => {
+    expect(started(1).status).toBe("playing");
+  });
+});
+
+describe("flip", () => {
+  it("a match scores and keeps the turn with a fresh timer", () => {
+    let s = started(2);
+    const [a, b] = pairOf(s);
+    s = act(s, "p1", { type: "flip", tileId: a }, T0 + 1000);
+    s = act(s, "p1", { type: "flip", tileId: b }, T0 + 2000);
+    expect(s.board[a]).toMatchObject({ state: "matched", by: "p1" });
+    expect(s.players[0]).toMatchObject({ pairs: 1, moves: 1, streak: 1, bestStreak: 1 });
+    expect(s.turn).toEqual({ playerId: "p1", deadline: T0 + 2000 + 20_000 });
+  });
+
+  it("a miss locks the board, then flips back and passes the turn", () => {
+    let s = started(2);
+    const [a, b] = mismatch(s);
+    s = act(s, "p1", { type: "flip", tileId: a }, T0 + 1000);
+    s = act(s, "p1", { type: "flip", tileId: b }, T0 + 2000);
+    expect(s.lockUntil).toBe(T0 + 2000 + RULES.mismatchLockMs);
+    expectError(() => act(s, "p1", { type: "flip", tileId: mismatch(s)[0] }, T0 + 2100), "locked");
+
+    const { state, events } = tick(s, T0 + 2000 + RULES.mismatchLockMs);
+    expect(events.map((e) => e.type)).toEqual(["tiles_hidden", "turn_changed"]);
+    expect(state.board[a]!.state).toBe("hidden");
+    expect(state.turn?.playerId).toBe("p2");
+    expect(state.lockUntil).toBeNull();
+  });
+
+  it("rejects out-of-turn, face-up and unknown tiles", () => {
+    const s = started(2);
+    expectError(() => act(s, "p2", { type: "flip", tileId: 0 }, T0 + 500), "not_your_turn");
+    expectError(() => act(s, "p9", { type: "flip", tileId: 0 }, T0 + 500), "not_a_player");
+    expectError(() => act(s, "p1", { type: "flip", tileId: 999 }, T0 + 500), "invalid_tile");
+    const once = act(s, "p1", { type: "flip", tileId: 0 }, T0 + 500);
+    expectError(() => act(once, "p1", { type: "flip", tileId: 0 }, T0 + 1000), "tile_not_hidden");
+  });
+
+  it("rate limits bursts from one player", () => {
+    const s = act(started(1), "p1", { type: "flip", tileId: 0 }, T0 + 500);
+    expectError(() => act(s, "p1", { type: "flip", tileId: 1 }, T0 + 520), "rate_limited");
+  });
+
+  it("finishes when every pair is matched, sharing ranks on ties", () => {
+    let s = started(2, { pairs: 8 });
+    let now = T0;
+    // p1 matches 4 pairs, misses, then p2 matches the remaining 4.
+    for (let i = 0; i < 4; i++) {
+      for (const tileId of pairOf(s)) s = act(s, "p1", { type: "flip", tileId }, (now += 500));
+    }
+    for (const tileId of mismatch(s)) s = act(s, "p1", { type: "flip", tileId }, (now += 500));
+    s = tick(s, (now += RULES.mismatchLockMs)).state;
+    for (let i = 0; i < 4; i++) {
+      for (const tileId of pairOf(s)) s = act(s, "p2", { type: "flip", tileId }, (now += 500));
+    }
+    expect(s.status).toBe("finished");
+    expect(s.turn).toBeNull();
+    const view = toView(s, "p1");
+    expect(view.players.map((p) => p.rank)).toEqual([1, 1]);
+    expect(nextDueAt(s)).toBeNull();
+  });
+});
+
+describe("timeouts", () => {
+  it("timeout after one flip hides that tile and passes the turn", () => {
+    let s = act(started(2), "p1", { type: "flip", tileId: 0 }, T0 + 1000);
+    s = tick(s, T0 + 20_000).state;
+    expect(s.board[0]!.state).toBe("hidden");
+    expect(s.revealed).toEqual([]);
+    expect(s.turn).toEqual({ playerId: "p2", deadline: T0 + 40_000 });
+  });
+
+  it("three consecutive timeouts mark a player away and skip them; joining again brings them back", () => {
+    let s = started(2, { turnSeconds: 10 });
+    // p1 never acts; p2 keeps playing by missing a pair each turn.
+    let now = T0;
+    for (let round = 0; round < 3; round++) {
+      now += 10_000;
+      s = tick(s, now).state; // p1 times out
+      for (const tileId of mismatch(s)) s = act(s, "p2", { type: "flip", tileId }, (now += 200));
+      now += RULES.mismatchLockMs;
+      s = tick(s, now).state;
+    }
+    const p1 = s.players.find((p) => p.id === "p1")!;
+    expect(p1.status).toBe("away");
+    expect(s.hostId).toBe("p2");
+    expect(s.turn?.playerId).toBe("p2");
+
+    s = act(s, "p1", { type: "join", identity: id(1) }, now);
+    expect(s.players.find((p) => p.id === "p1")!.status).toBe("active");
+  });
+
+  it("catches up on many elapsed deadlines in one tick, ending abandoned", () => {
+    const s = started(3, { turnSeconds: 10 });
+    const { state, events } = tick(s, T0 + 24 * 3_600_000);
+    expect(state.status).toBe("abandoned");
+    expect(state.players.every((p) => p.status === "away")).toBe(true);
+    expect(events.filter((e) => e.type === "turn_timed_out")).toHaveLength(9);
+    // Events are stamped with the time each deadline fell due, not the time of the catch-up.
+    const abandoned = events.at(-1)!;
+    expect(abandoned.type).toBe("abandoned");
+    expect(abandoned.at).toBe(T0 + 9 * 10_000 + RULES.allAwayAbandonMs);
+  });
+
+  it("tick is a no-op before anything is due", () => {
+    const s = started(2);
+    expect(tick(s, T0 + 1).events).toEqual([]);
+  });
+});
+
+describe("leave", () => {
+  it("keeps the leaver's score, passes their turn, and the last player continues solo", () => {
+    let s = started(2);
+    let now = T0;
+    for (const tileId of pairOf(s)) s = act(s, "p1", { type: "flip", tileId }, (now += 500));
+    s = act(s, "p1", { type: "leave" }, T0 + 5000);
+    expect(s.players[0]).toMatchObject({ status: "left", pairs: 1 });
+    expect(s.hostId).toBe("p2");
+    expect(s.turn?.playerId).toBe("p2");
+    s = tick(s, T0 + 5000 + 20_000).state;
+    expect(s.turn?.playerId).toBe("p2");
+  });
+
+  it("everyone leaving abandons the table", () => {
+    let s = started(2);
+    s = act(s, "p1", { type: "leave" }, T0 + 1);
+    s = act(s, "p2", { type: "leave" }, T0 + 2);
+    expect(s.status).toBe("abandoned");
+  });
+});
+
+describe("toView", () => {
+  it("never exposes the face of a hidden tile", () => {
+    const s = act(started(2, { pairs: 18 }), "p1", { type: "flip", tileId: 3 }, T0 + 500);
+    const view = toView(s, "p2");
+    for (const tile of view.tiles) {
+      if (tile.id === 3) expect(tile).toEqual({ id: 3, state: "revealed", face: s.board[3]!.face });
+      else expect(tile).toEqual({ id: tile.id, state: "hidden" });
+    }
+    expect(view.youId).toBe("p2");
+    expect(toView(s, "stranger").youId).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Property tests: random sequences of actions and clock jumps
+// ---------------------------------------------------------------------------
+
+const step = fc.oneof(
+  fc.record({ kind: fc.constant("flip" as const), actor: fc.integer({ min: 1, max: 3 }), tile: fc.nat(40) }),
+  fc.record({ kind: fc.constant("wait" as const), ms: fc.integer({ min: 0, max: 60_000 }) }),
+  fc.record({ kind: fc.constant("leave" as const), actor: fc.integer({ min: 1, max: 3 }) }),
+  fc.record({ kind: fc.constant("join" as const), actor: fc.integer({ min: 1, max: 3 }) }),
+);
+
+type Step = typeof step extends fc.Arbitrary<infer T> ? T : never;
+
+function run(seed: number, steps: Step[]) {
+  let s = applyAction(
+    lobby(3, { pairs: 12, turnSeconds: 10 }),
+    "p1",
+    { type: "start" },
+    T0,
+    seededRng(seed),
+  ).state;
+  let now = T0;
+  const history: GameState[] = [s];
+  for (const st of steps) {
+    now += st.kind === "wait" ? st.ms : 150;
+    s = tick(s, now).state;
+    try {
+      if (st.kind === "flip") s = act(s, `p${st.actor}`, { type: "flip", tileId: st.tile }, now);
+      if (st.kind === "leave") s = act(s, `p${st.actor}`, { type: "leave" }, now);
+      if (st.kind === "join") s = act(s, `p${st.actor}`, { type: "join", identity: id(st.actor) }, now);
+    } catch (e) {
+      if (!(e instanceof EngineError)) throw e;
+    }
+    history.push(s);
+  }
+  return history;
+}
+
+describe("invariants", () => {
+  it("pairs are conserved, matches never revert, scores add up", () => {
+    fc.assert(
+      fc.property(fc.integer(), fc.array(step, { maxLength: 120 }), (seed, steps) => {
+        const history = run(seed, steps);
+        const initialFaces = history[0]!.board.map((t) => t.face);
+        for (let i = 0; i < history.length; i++) {
+          const s = history[i]!;
+          // Board contents never change, only their visibility.
+          expect(s.board.map((t) => t.face)).toEqual(initialFaces);
+          // Matched tiles come in pairs and stay matched.
+          const matched = s.board.filter((t) => t.state === "matched");
+          expect(matched.length % 2).toBe(0);
+          expect(s.players.reduce((sum, p) => sum + p.pairs, 0)).toBe(matched.length / 2);
+          if (i > 0) {
+            history[i - 1]!.board.forEach((t, tileId) => {
+              if (t.state === "matched") expect(s.board[tileId]!.state).toBe("matched");
+            });
+          }
+          // At most two tiles face up, and only while playing.
+          const revealed = s.board.filter((t) => t.state === "revealed").length;
+          expect(revealed).toBeLessThanOrEqual(2);
+          expect(revealed).toBe(s.revealed.length);
+          if (s.status === "playing") expect(s.turn !== null || s.abandonAt !== null).toBe(true);
+          // Redacted view leaks no hidden faces.
+          for (const tile of toView(s, "p1").tiles) {
+            if (tile.state === "hidden") expect(Object.keys(tile).sort()).toEqual(["id", "state"]);
+          }
+        }
+      }),
+      { numRuns: 300 },
+    );
+  });
+
+  it("shuffle is a permutation of the pair multiset", () => {
+    fc.assert(
+      fc.property(fc.integer(), fc.integer({ min: 1, max: 50 }), (seed, pairs) => {
+        const faces = shuffleBoard(pairs, seededRng(seed));
+        expect([...faces].sort((a, b) => a - b)).toEqual(
+          Array.from({ length: pairs * 2 }, (_, i) => Math.floor(i / 2) + 1),
+        );
+      }),
+    );
+  });
+
+  it("ticking in many small steps equals ticking once", () => {
+    fc.assert(
+      fc.property(
+        fc.integer(),
+        fc.array(fc.integer({ min: 1, max: 30_000 }), { maxLength: 30 }),
+        (seed, gaps) => {
+          const s0 = applyAction(
+            lobby(3, { turnSeconds: 10 }),
+            "p1",
+            { type: "start" },
+            T0,
+            seededRng(seed),
+          ).state;
+          let stepwise = s0;
+          let now = T0;
+          for (const gap of gaps) stepwise = tick(stepwise, (now += gap)).state;
+          expect(tick(s0, now).state).toEqual(stepwise);
+        },
+      ),
+    );
+  });
+});

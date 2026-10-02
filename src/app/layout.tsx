@@ -1,0 +1,31 @@
+import type { Metadata, Viewport } from "next";
+import { Atkinson_Hyperlegible, Bricolage_Grotesque } from "next/font/google";
+
+import { SiteHeader } from "@/components/SiteHeader";
+
+import "./globals.css";
+
+const display = Bricolage_Grotesque({
+  subsets: ["latin"],
+  variable: "--font-display",
+  weight: ["500", "700", "800"],
+});
+const body = Atkinson_Hyperlegible({ subsets: ["latin"], variable: "--font-body", weight: ["400", "700"] });
+
+export const metadata: Metadata = {
+  title: "Matching Pairs",
+  description: "Turn over two tiles, find the pair. A memory game to play with friends.",
+};
+
+export const viewport: Viewport = { themeColor: "#1F4FA3", width: "device-width", initialScale: 1 };
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html lang="en" className={`${display.variable} ${body.variable}`}>
+      <body>
+        <SiteHeader />
+        {children}
+      </body>
+    </html>
+  );
+}

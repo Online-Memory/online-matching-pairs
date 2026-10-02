@@ -1,0 +1,8 @@
+.next
+node_modules
+pnpm-lock.yaml
+public/themes
+playwright-report
+test-results
+.remember
+.pglite
