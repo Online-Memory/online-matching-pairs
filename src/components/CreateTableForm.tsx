@@ -1,12 +1,21 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { api, ApiError } from "@/lib/client/api";
 import { loadGuestName, saveGuestName } from "@/lib/client/guest-name";
 import { useMe } from "@/lib/client/use-me";
-import { PAIR_OPTIONS, THEMES, TURN_SECONDS_OPTIONS, themePreviewUrl, type ThemeId } from "@/lib/protocol";
+import {
+  MAX_PLAYERS,
+  maxPlayersFor,
+  PAIR_OPTIONS,
+  THEMES,
+  TURN_SECONDS_OPTIONS,
+  themePreviewUrl,
+  type ThemeId,
+} from "@/lib/protocol";
 
 import { NameField } from "./NameField";
 
@@ -27,6 +36,9 @@ export function CreateTableForm() {
 
   const maxPairs = THEMES.find((t) => t.id === theme)!.maxPairs;
   const needsName = me !== null && !me.user;
+  const playerCap = maxPlayersFor(!!me?.user);
+  // Clamp at render rather than in an effect, so signing out can never submit a stale 5..12.
+  const seats = Math.min(maxPlayers, playerCap);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -37,7 +49,7 @@ export function CreateTableForm() {
       const { code } = await api.createTable({
         theme,
         pairs: Math.min(pairs, maxPairs),
-        maxPlayers,
+        maxPlayers: seats,
         turnSeconds,
         name: needsName ? name.trim() : undefined,
       });
@@ -83,13 +95,18 @@ export function CreateTableForm() {
         </div>
         <div className="field">
           <label htmlFor="max-players">Players</label>
-          <select id="max-players" value={maxPlayers} onChange={(e) => setMaxPlayers(Number(e.target.value))}>
-            {[1, 2, 3, 4].map((n) => (
+          <select id="max-players" value={seats} onChange={(e) => setMaxPlayers(Number(e.target.value))}>
+            {Array.from({ length: playerCap }, (_, i) => i + 1).map((n) => (
               <option key={n} value={n}>
                 {n === 1 ? "Just me" : `Up to ${n}`}
               </option>
             ))}
           </select>
+          {me?.authEnabled && !me.user && (
+            <p className="hint field-hint">
+              <Link href="/auth/sign-in">Sign in</Link> to host up to {MAX_PLAYERS} players
+            </p>
+          )}
         </div>
         <div className="field">
           <label htmlFor="turn-seconds">Seconds per turn</label>

@@ -18,6 +18,23 @@ test("two guests play a game to the end", async ({ newPlayer }) => {
   expect(pairs.map(Number).reduce((a, b) => a + b, 0)).toBe(8);
 });
 
+test("guests can host at most 4 players", async ({ newPlayer }) => {
+  const ann = await newPlayer("Ann");
+  await ann.page.goto("/");
+  const options = ann.page.getByLabel("Players").locator("option");
+  await expect(options).toHaveText(["Just me", "Up to 2", "Up to 3", "Up to 4"]);
+
+  // The dropdown is a convenience; the API is the real gate.
+  const response = await ann.page.request.post("/api/tables", {
+    data: { theme: "001", pairs: 8, maxPlayers: 5, turnSeconds: 20, name: "Ann" },
+  });
+  expect(response.status()).toBe(400);
+  expect(await response.text()).toContain("Sign in to host up to 12");
+
+  await createTable(ann, { maxPlayers: 4 });
+  await expect(ann.page.locator(".lobby-empty")).toHaveCount(3);
+});
+
 test("solo practice game", async ({ newPlayer }) => {
   const ann = await newPlayer("Ann");
   await createTable(ann, { pairs: 8, maxPlayers: 1 });
