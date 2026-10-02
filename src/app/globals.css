@@ -166,6 +166,10 @@ a {
   margin: 0 auto;
 }
 
+.table-page {
+  max-width: 90rem;
+}
+
 .page-narrow {
   max-width: 34rem;
   padding-top: 2rem;
@@ -620,8 +624,15 @@ a {
   display: grid;
   grid-template-columns: repeat(var(--cols), minmax(0, 1fr));
   gap: var(--gap);
-  /* Fit the whole board on screen: limited by width, by height, and by a comfortable max tile size. */
-  width: min(100%, calc((100dvh - 15rem) * var(--cols) / var(--rows)), calc(var(--cols) * 7.5rem));
+  --tile-min: 6rem; /* ~96px: big boards scroll rather than shrink below this */
+  --tile-max: 9rem;
+  /* Fit the whole board on screen when it can, but never shrink tiles below --tile-min
+     (the page scrolls instead) or grow them past --tile-max. Always capped by the available width. */
+  width: min(
+    100%,
+    max(calc((100dvh - 15rem) * var(--cols) / var(--rows)), calc(var(--cols) * var(--tile-min))),
+    calc(var(--cols) * var(--tile-max))
+  );
   min-width: min(100%, 18rem);
   margin: 0 auto;
 }
