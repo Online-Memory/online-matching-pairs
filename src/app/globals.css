@@ -26,6 +26,14 @@
   --seat-1: #d9412e;
   --seat-2: #4e8a2e;
   --seat-3: #8a4fa0;
+  --seat-4: #0f7f7f;
+  --seat-5: #b8560f;
+  --seat-6: #c2397a;
+  --seat-7: #6b4a2b;
+  --seat-8: #5a6475;
+  --seat-9: #23262e;
+  --seat-10: #2b8fd6;
+  --seat-11: #8f1f3f;
 
   --radius-tile: 10px;
   --flip-duration: 320ms;
@@ -54,6 +62,14 @@
   --seat-1: #ec6a55;
   --seat-2: #72b44c;
   --seat-3: #b67acc;
+  --seat-4: #3cbcbc;
+  --seat-5: #e8892a;
+  --seat-6: #e86aa6;
+  --seat-7: #b08560;
+  --seat-8: #8a94a8;
+  --seat-9: #eef1f6;
+  --seat-10: #5cb8f0;
+  --seat-11: #c4566f;
 
   color-scheme: dark;
 }
@@ -214,6 +230,8 @@ a {
 
 .field {
   display: grid;
+  /* Fields in a row stretch to the tallest; keep label + control at the top so they line up. */
+  align-content: start;
   gap: 0.25rem;
   margin-bottom: 1rem;
 }
@@ -248,6 +266,11 @@ a {
 .hint {
   color: var(--ink-soft);
   font-size: 0.9375rem;
+}
+
+.field-hint {
+  margin: 0;
+  font-size: 0.8125rem;
 }
 
 .form-error {
@@ -455,6 +478,30 @@ a {
 }
 [data-seat="3"] {
   --seat: var(--seat-3);
+}
+[data-seat="4"] {
+  --seat: var(--seat-4);
+}
+[data-seat="5"] {
+  --seat: var(--seat-5);
+}
+[data-seat="6"] {
+  --seat: var(--seat-6);
+}
+[data-seat="7"] {
+  --seat: var(--seat-7);
+}
+[data-seat="8"] {
+  --seat: var(--seat-8);
+}
+[data-seat="9"] {
+  --seat: var(--seat-9);
+}
+[data-seat="10"] {
+  --seat: var(--seat-10);
+}
+[data-seat="11"] {
+  --seat: var(--seat-11);
 }
 
 /* Yellow stays yellow in both themes, so re-point the text tokens at dark ink inside it. */
@@ -678,6 +725,7 @@ a {
   padding: 0;
   margin: 0 0 1.5rem;
   display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
   gap: 0.5rem;
 }
 
@@ -782,6 +830,17 @@ a {
 
   .seat {
     padding: 0.375rem 0.5rem;
+  }
+
+  /* Big tables: drop the moves/streak line so 12 seats don't push the board off screen. */
+  .scoreboard:has(> :nth-child(5)) .seat {
+    grid-template-areas: "token name pairs timer";
+  }
+  .scoreboard:has(> :nth-child(5)) .seat-meta {
+    display: none;
+  }
+  .scoreboard:has(> :nth-child(5)) .seat-pairs {
+    font-size: 1.25rem;
   }
 
   .board {

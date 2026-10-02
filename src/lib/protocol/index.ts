@@ -17,7 +17,10 @@ export const codeSchema = z
   .pipe(z.string().regex(new RegExp(`^[${CODE_ALPHABET}]{${CODE_LENGTH}}$`), "Invalid table code"));
 
 export const MIN_PLAYERS = 1;
-export const MAX_PLAYERS = 4;
+/** Guests can host small tables; signing in raises the cap. Joining a table is never gated. */
+export const GUEST_MAX_PLAYERS = 4;
+export const MAX_PLAYERS = 12;
+export const maxPlayersFor = (signedIn: boolean) => (signedIn ? MAX_PLAYERS : GUEST_MAX_PLAYERS);
 export const TURN_SECONDS_OPTIONS = [10, 15, 20, 30, 45, 60] as const;
 
 export const displayNameSchema = z

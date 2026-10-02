@@ -92,6 +92,29 @@ describe("TableService", () => {
     });
   });
 
+  it("seats 12 players at a 12-seat table and turns away the 13th", async () => {
+    const guests: Identity[] = Array.from({ length: 12 }, (_, i) => ({
+      playerId: `g_${i}`,
+      userId: null,
+      name: `Guest ${i}`,
+    }));
+    const { code } = await service.create(alice, { ...settings, maxPlayers: 12 });
+    for (const g of guests.slice(1)) await service.act(code, g, { type: "join", identity: g }, -1);
+
+    await expect(
+      service.act(code, guests[0]!, { type: "join", identity: guests[0]! }, -1),
+    ).rejects.toMatchObject({
+      code: "table_full",
+    });
+
+    await service.act(code, alice, { type: "start" }, -1);
+    const seats = await db.query<{ seat: number }>(
+      "SELECT seat FROM game_players gp JOIN games g ON g.id = gp.game_id WHERE g.code = $1 ORDER BY seat",
+      [code],
+    );
+    expect(seats.map((r) => r.seat)).toEqual([...Array(12).keys()]);
+  });
+
   it("applies a missed turn deadline lazily on the next poll", async () => {
     const code = await startedTable();
     const before = (await service.poll(code, bob.playerId, -1)) as SnapshotResponse;
