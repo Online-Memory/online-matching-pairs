@@ -72,7 +72,9 @@ in-memory PGlite.
 1. Import the repo in Vercel and add the **Neon** integration from the Vercel Marketplace. It sets `DATABASE_URL`
    and `DATABASE_URL_UNPOOLED` and creates a database branch for each preview.
 2. Enable Neon Auth on the Neon project and set `NEON_AUTH_BASE_URL` and `NEON_AUTH_COOKIE_SECRET` (32+ chars). Add
-   Google OAuth in the Neon Auth settings if you want "Continue with Google".
+   Google OAuth in the Neon Auth settings if you want "Continue with Google". Enable both variables for **Preview**
+   as well as Production, or previews hide "Sign in" (set both or neither: with only one, `/api/me` fails). To
+   sign in on a preview, also add its domain (`*-git-*-<team>.vercel.app`) to the Neon Auth trusted domains.
 3. Set `GUEST_TOKEN_SECRET` (32+ chars) and `CRON_SECRET`.
 4. `vercel.json` makes each build run `pnpm db:migrate` before `next build`, and registers a daily cleanup cron
    (`/api/cron/cleanup`). Write migrations so they stay backward compatible: the old deployment keeps serving
