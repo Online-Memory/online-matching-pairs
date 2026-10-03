@@ -1,4 +1,4 @@
-# Matching Pairs
+# Online Matching Pairs
 
 A turn-based matching pairs (memory) game for 1–4 friends. It's one Next.js app deployed on Vercel, backed by Neon
 Postgres. This is a rewrite of [`online-memory`](../online-memory), which ran on AWS AppSync, DynamoDB, Cognito and Lambda.
