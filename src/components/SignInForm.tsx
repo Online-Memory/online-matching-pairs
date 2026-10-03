@@ -45,10 +45,12 @@ export function SignInForm() {
     setPending(true);
     setError(null);
     const result = await authClient.signIn.social({ provider: "google", callbackURL: "/profile" });
-    // TODO(you): handle result.error. It is set when Neon Auth refuses to start the flow
-    // (provider disabled, untrusted origin, network down). Decide what the player sees and
-    // whether the button becomes usable again.
-    void result;
+    // Set when Neon Auth refuses to start the flow: provider disabled, untrusted origin (e.g. a
+    // preview domain missing from the trusted domains), network down.
+    if (result.error) {
+      setError(result.error.message ?? "Google sign-in isn't available right now. Try email instead.");
+      setPending(false);
+    }
   }
 
   return (

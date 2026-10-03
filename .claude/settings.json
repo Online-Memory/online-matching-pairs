@@ -1,0 +1,71 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pnpm lint)",
+      "Bash(pnpm format:check)",
+      "Bash(pnpm typecheck)",
+      "Bash(pnpm test)",
+      "Bash(pnpm test:*)",
+      "Bash(pnpm build)",
+      "Bash(pnpm exec prettier:*)",
+      "Bash(pnpm exec eslint:*)",
+      "Bash(git status)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)"
+    ],
+    "ask": [
+      "Bash(pnpm db:migrate:local)",
+      "Bash(pnpm db:migrate)",
+      "Bash(pnpm test:e2e:neon)",
+      "Bash(git push:*)",
+      "Bash(git commit:*)",
+      "Bash(git switch -c:*)",
+      "Bash(git switch --create:*)",
+      "Bash(git checkout -b:*)",
+      "Bash(git checkout -B:*)",
+      "Bash(git branch:*)",
+      "Bash(git worktree add:*)"
+    ],
+    "deny": [
+      "Edit(**/.env)",
+      "Edit(**/.env.!(example|sample))",
+      "Write(**/.env)",
+      "Write(**/.env.!(example|sample))"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/protect-migrations.mjs"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/format.mjs"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/verify-on-stop.mjs",
+            "timeout": 180
+          }
+        ]
+      }
+    ]
+  }
+}

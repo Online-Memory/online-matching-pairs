@@ -10,7 +10,13 @@ const listeners = new Set<(me: MeResponse) => void>();
 let cached: Promise<MeResponse> | null = null;
 
 function load() {
-  cached ??= api.me().catch(() => ({ authEnabled: false, user: null }));
+  cached ??= api.me().catch((error: unknown) => {
+    // Show the header without accounts, but log it: a misconfigured deployment (e.g. only one
+    // NEON_AUTH_* variable set) otherwise looks exactly like accounts being switched off.
+    console.error("GET /api/me failed; hiding account links", error);
+    cached = null; // Retry on the next mount instead of caching the failure.
+    return { authEnabled: false, user: null };
+  });
   return cached;
 }
 
