@@ -1,4 +1,5 @@
 import { CreateTableForm } from "@/components/CreateTableForm";
+import { HomeInvites } from "@/components/HomeInvites";
 import { JoinByCode } from "@/components/JoinByCode";
 
 const HERO_FACES = [3, 17, 0, 9, 0, 17, 26, 0, 41, 0, 3, 33];
@@ -37,6 +38,7 @@ export default function HomePage() {
         <CreateTableForm />
         <JoinByCode />
       </div>
+      <HomeInvites />
     </main>
   );
 }

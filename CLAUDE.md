@@ -20,6 +20,10 @@ Turn-based memory game, one Next.js app on Vercel backed by Neon Postgres. Clien
 - `src/server/tables/service.ts`: `TableService`: load row → `tick(now)` → engine action → compare-and-set save.
 - `src/server/db/`: drivers (Neon, Postgres, PGlite), `tables.ts` (`table_state` + mirroring), `history.ts`.
 - `src/app/api/tables/[code]/*`: route handlers, thin wrappers over `TableService`.
+- `src/server/friends/service.ts`: `FriendsService`: profiles (`@handle`), presence heartbeat, friendships and lobby
+  invites in `profiles`, `friendships`, `table_invites`. It never reads `table_state`; seating comes from
+  `TableService.isSeatedInLobby`. Routes: `src/app/api/friends/*`, `src/app/api/me/{presence,handle}`,
+  `src/app/api/tables/[code]/invites`. Client: `src/lib/client/use-friends.ts`.
 - `src/lib/protocol/`: types shared by server and client. `src/lib/client/use-table.ts` is the only client code that
   talks to a table.
 - `db/migrations/*.sql`: node-pg-migrate SQL files with `-- Up Migration` / `-- Down Migration` sections.

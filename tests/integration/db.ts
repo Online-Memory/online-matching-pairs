@@ -19,7 +19,8 @@ export async function createTestDb(): Promise<Db & { close(): Promise<void>; res
     return {
       query: async <Row>(text: string, params: unknown[] = []) =>
         (await pool.query(text, params)).rows as Row[],
-      reset: async () => void (await pool.query("TRUNCATE games CASCADE")),
+      reset: async () =>
+        void (await pool.query("TRUNCATE games, profiles, friendships, table_invites CASCADE")),
       close: () => pool.end(),
     };
   }
@@ -30,7 +31,8 @@ export async function createTestDb(): Promise<Db & { close(): Promise<void>; res
   );
   return {
     query: async <Row>(text: string, params: unknown[] = []) => (await pglite.query<Row>(text, params)).rows,
-    reset: async () => void (await pglite.exec("TRUNCATE games CASCADE")),
+    reset: async () =>
+      void (await pglite.exec("TRUNCATE games, profiles, friendships, table_invites CASCADE")),
     close: () => pglite.close(),
   };
 }

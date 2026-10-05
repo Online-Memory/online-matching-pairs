@@ -28,6 +28,10 @@ browser ── GET /api/tables/ABC234?since=41 (every ~1s while playing) ──�
   `since`, applies snapshots, keeps recent events and sends actions. Push (SSE or WebSocket) could replace polling
   there without changing the engine or the UI.
 - **Identity**: signed-in players use Neon Auth. Guests get a random id in an HMAC-signed httpOnly cookie.
+- **Friends** (signed-in only): `FriendsService` keeps a unique `@handle` per account, mutual friendships
+  (request, then accept) and lobby invites. Presence is a `last_seen_at` heartbeat sent every 30s from the layout;
+  a friend counts as online for 75s after it. `GET /api/friends` is polled every 5s and carries no table state.
+  Guests and deployments without Neon Auth get a 401 and no friends UI.
 
 ## Develop
 

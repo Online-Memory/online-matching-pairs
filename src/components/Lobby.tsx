@@ -4,6 +4,7 @@ import { useState } from "react";
 
 import { getTheme, type TableView } from "@/lib/protocol";
 
+import { InviteFriends } from "./InviteFriends";
 import { JoinPanel } from "./JoinPanel";
 
 type Props = {
@@ -58,6 +59,8 @@ export function Lobby({ view, needsName, pending, onJoin, onStart, onLeave }: Pr
           </li>
         )}
       </ul>
+
+      {isPlayer && !full && <InviteFriends code={view.code} />}
 
       {!isPlayer &&
         (full ? (

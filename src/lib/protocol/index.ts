@@ -179,3 +179,41 @@ export type MeResponse = {
   authEnabled: boolean;
   user: { id: string; name: string; email: string | null; image: string | null } | null;
 };
+
+/** Handles are what people search for. Input is forgiving (`@Sonny ` -> `sonny`); storage is canonical. */
+export const handleSchema = z
+  .string()
+  .trim()
+  .transform((s) => s.replace(/^@/, "").toLowerCase())
+  .pipe(z.string().regex(/^[a-z0-9_]{3,20}$/, "Handles are 3-20 letters, numbers or underscores"));
+
+export const friendRequestSchema = z.object({ handle: handleSchema });
+export const setHandleSchema = z.object({ handle: handleSchema });
+export const inviteRequestSchema = z.object({ userId: z.string().min(1).max(200) });
+
+export type FriendEntry = {
+  userId: string;
+  handle: string;
+  name: string;
+  online: boolean;
+  lastSeenAt: string;
+};
+export type FriendRequestEntry = { userId: string; handle: string; name: string };
+export type OutgoingRequestEntry = { userId: string; handle: string };
+export type InviteEntry = {
+  id: string;
+  tableCode: string;
+  fromName: string;
+  fromHandle: string;
+  expiresAt: string;
+};
+
+/** One poll for the whole friends panel. Carries no table state. */
+export type FriendsResponse = {
+  handle: string | null;
+  friends: FriendEntry[];
+  incoming: FriendRequestEntry[];
+  /** No display name: someone who merely sent a request shouldn't learn the target's real name. */
+  outgoing: OutgoingRequestEntry[];
+  invites: InviteEntry[];
+};

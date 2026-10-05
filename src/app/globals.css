@@ -1181,3 +1181,207 @@ a {
     animation: none;
   }
 }
+
+/* ----------------------------------------------------------------- friends */
+
+.friends {
+  display: grid;
+  gap: 1rem;
+  margin-block: 1.5rem;
+}
+
+.friends h2,
+.friends h3 {
+  margin: 0;
+}
+
+.friends h3 {
+  font-size: 1.0625rem;
+}
+
+.friends-card {
+  display: grid;
+  gap: 0.75rem;
+  background: var(--card);
+  border: 2px solid var(--line);
+  border-radius: 14px;
+  padding: clamp(1rem, 3vw, 1.5rem);
+}
+
+.friends-card p {
+  margin: 0;
+}
+
+.home-invites {
+  margin-block-start: clamp(1.5rem, 4vw, 3rem);
+}
+
+.handle-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.handle {
+  font-family: var(--font-display), system-ui, sans-serif;
+  font-size: 1.25rem;
+}
+
+.inline-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: start;
+  gap: 0.75rem;
+}
+
+.inline-form .field {
+  flex: 1 1 14rem;
+  margin: 0;
+}
+
+/* Buttons line up with the input, not the label above it. */
+.inline-form > .button,
+.inline-form > .button-quiet,
+.inline-form > .form-actions {
+  margin-block-start: 1.5625rem;
+}
+
+.form-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.friend-rows {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.friend-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.625rem 0.75rem;
+  border: 2px solid var(--line);
+  border-radius: var(--radius-control);
+}
+
+.friend-main {
+  display: grid;
+  flex: 1 1 10rem;
+  min-width: 0;
+}
+
+.friend-main small {
+  color: var(--ink-soft);
+  font-weight: 400;
+}
+
+.friend-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.avatar {
+  position: relative;
+  display: grid;
+  place-items: center;
+  flex: none;
+  inline-size: 2.5rem;
+  block-size: 2.5rem;
+  border-radius: 50%;
+  background: var(--cobalt);
+  color: #fff;
+  font-weight: 700;
+}
+
+.presence-dot {
+  position: absolute;
+  inset-inline-end: -0.0625rem;
+  inset-block-end: -0.0625rem;
+  inline-size: 0.75rem;
+  block-size: 0.75rem;
+  border-radius: 50%;
+  background: var(--ink-soft);
+  border: 2px solid var(--card);
+}
+
+[data-online="true"] .presence-dot {
+  background: #1f9d55;
+}
+
+/* Friend request banner */
+.banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem 1rem;
+  margin: 0.75rem clamp(1rem, 3vw, 2rem) 0;
+  padding: 0.75rem 1rem;
+  background: var(--card);
+  border: 2px solid var(--cobalt);
+  border-radius: 14px;
+}
+
+.banner-text {
+  margin: 0;
+  flex: 1 1 14rem;
+}
+
+.banner-text small {
+  color: var(--ink-soft);
+}
+
+.banner-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.banner-error {
+  flex-basis: 100%;
+  margin: 0;
+}
+
+/* Lobby invite picker */
+.invite-friends {
+  margin-block-end: 1.5rem;
+}
+
+.invite-friends h3 {
+  margin: 0 0 0.5rem;
+}
+
+.invite-friends ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.invite-friends li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.625rem;
+  padding: 0.625rem 0.875rem;
+  border-radius: var(--radius-control);
+  background: var(--card);
+  border: 2px solid var(--line);
+}
+
+.invite-friends .presence-dot {
+  position: static;
+  border: 0;
+  inline-size: 0.625rem;
+  block-size: 0.625rem;
+  flex: none;
+}

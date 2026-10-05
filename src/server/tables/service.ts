@@ -72,6 +72,15 @@ export class TableService {
     throw new ServiceError("internal", "Could not allocate a table code");
   }
 
+  /** Whether `userId` holds a seat (has not left) at a table that is still a lobby. Answers a boolean, never state. */
+  async isSeatedInLobby(code: string, userId: string): Promise<boolean> {
+    const record = await loadTable(this.db, code);
+    return (
+      record?.state.status === "lobby" &&
+      record.state.players.some((p) => p.userId === userId && p.status !== "left")
+    );
+  }
+
   /** Poll: applies any due deadlines, then answers relative to the client's last seen `since`. */
   async poll(code: string, viewerId: string | null, since: number): Promise<PollResponse> {
     const { state, ring } = await this.transact(code, null);

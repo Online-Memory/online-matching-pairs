@@ -9,6 +9,7 @@ import { authClient } from "@/lib/client/auth-client";
 import { invalidateMe, useMe } from "@/lib/client/use-me";
 import { getTheme, type HistoryEntry } from "@/lib/protocol";
 
+import { FriendsPanel } from "./FriendsPanel";
 import { ordinal } from "./Scoreboard";
 
 export function Profile() {
@@ -37,6 +38,7 @@ export function Profile() {
     <>
       <h1>{me.user.name}</h1>
       {me.user.email && <p className="hint">{me.user.email}</p>}
+      <FriendsPanel />
       <h2>Finished games</h2>
       {history === null ? (
         <p className="notice">Loading…</p>

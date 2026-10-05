@@ -3,6 +3,7 @@ import type {
   CreateTableResponse,
   ErrorCode,
   ErrorResponse,
+  FriendsResponse,
   HistoryEntry,
   MeResponse,
   PollResponse,
@@ -41,6 +42,8 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 const post = <T>(path: string, body: unknown = {}) =>
   request<T>(path, { method: "POST", body: JSON.stringify(body) });
+const send = <T>(method: "PUT" | "PATCH" | "DELETE", path: string, body?: unknown) =>
+  request<T>(path, { method, body: body === undefined ? undefined : JSON.stringify(body) });
 const table = (code: string, action: string, since: number) =>
   `/api/tables/${encodeURIComponent(code)}/${action}?since=${since}`;
 
@@ -57,4 +60,15 @@ export const api = {
   leave: (code: string, since: number) => post<SnapshotResponse>(table(code, "leave", since)),
   me: () => request<MeResponse>("/api/me"),
   history: () => request<HistoryEntry[]>("/api/me/history"),
+  friends: () => request<FriendsResponse>("/api/friends"),
+  sendFriendRequest: (handle: string) => post<{ ok: true }>("/api/friends/requests", { handle }),
+  acceptFriend: (userId: string) => send<{ ok: true }>("PATCH", `/api/friends/${encodeURIComponent(userId)}`),
+  removeFriend: (userId: string) =>
+    send<{ ok: true }>("DELETE", `/api/friends/${encodeURIComponent(userId)}`),
+  dismissInvite: (id: string) =>
+    send<{ ok: true }>("DELETE", `/api/friends/invites/${encodeURIComponent(id)}`),
+  setHandle: (handle: string) => send<{ handle: string }>("PUT", "/api/me/handle", { handle }),
+  heartbeat: () => send<{ handle: string }>("PUT", "/api/me/presence"),
+  inviteFriend: (code: string, userId: string) =>
+    post<{ ok: true }>(`/api/tables/${encodeURIComponent(code)}/invites`, { userId }),
 };
