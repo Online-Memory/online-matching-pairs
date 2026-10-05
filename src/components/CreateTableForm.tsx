@@ -25,7 +25,6 @@ export function CreateTableForm() {
   const [name, setName] = useState("");
   const [theme, setTheme] = useState<ThemeId>("001");
   const [pairs, setPairs] = useState(12);
-  const [maxPlayers, setMaxPlayers] = useState(2);
   const [turnSeconds, setTurnSeconds] = useState(20);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -37,8 +36,6 @@ export function CreateTableForm() {
   const maxPairs = THEMES.find((t) => t.id === theme)!.maxPairs;
   const needsName = me !== null && !me.user;
   const playerCap = maxPlayersFor(!!me?.user);
-  // Clamp at render rather than in an effect, so signing out can never submit a stale 5..12.
-  const seats = Math.min(maxPlayers, playerCap);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -49,7 +46,6 @@ export function CreateTableForm() {
       const { code } = await api.createTable({
         theme,
         pairs: Math.min(pairs, maxPairs),
-        maxPlayers: seats,
         turnSeconds,
         name: needsName ? name.trim() : undefined,
       });
@@ -94,21 +90,6 @@ export function CreateTableForm() {
           </select>
         </div>
         <div className="field">
-          <label htmlFor="max-players">Players</label>
-          <select id="max-players" value={seats} onChange={(e) => setMaxPlayers(Number(e.target.value))}>
-            {Array.from({ length: playerCap }, (_, i) => i + 1).map((n) => (
-              <option key={n} value={n}>
-                {n === 1 ? "Just me" : `Up to ${n}`}
-              </option>
-            ))}
-          </select>
-          {me?.authEnabled && !me.user && (
-            <p className="hint field-hint">
-              <Link href="/auth/sign-in">Sign in</Link> to host up to {MAX_PLAYERS} players
-            </p>
-          )}
-        </div>
-        <div className="field">
           <label htmlFor="turn-seconds">Seconds per turn</label>
           <select
             id="turn-seconds"
@@ -126,6 +107,15 @@ export function CreateTableForm() {
 
       {needsName && <NameField id="create-name" value={name} onChange={setName} />}
       {me?.user && <p className="hint">Playing as {me.user.name}</p>}
+      <p className="hint">
+        Players join after you create the table: up to {playerCap}.
+        {me?.authEnabled && !me.user && (
+          <>
+            {" "}
+            <Link href="/auth/sign-in">Sign in</Link> to host up to {MAX_PLAYERS}.
+          </>
+        )}
+      </p>
 
       {error && (
         <p className="form-error" role="alert">

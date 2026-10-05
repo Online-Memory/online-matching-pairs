@@ -63,7 +63,10 @@ describe("TableService", () => {
     expect(await service.poll(code, alice.playerId, first.view.seq)).toEqual({
       unchanged: true,
       serverNow: now,
+      youId: "u_alice",
     });
+    // Someone who is not seated is told so, which is how a client with a stale identity finds out.
+    expect(await service.poll(code, null, first.view.seq)).toMatchObject({ unchanged: true, youId: null });
 
     await service.act(code, bob, { type: "join", identity: bob }, -1);
     const next = (await service.poll(code, alice.playerId, first.view.seq)) as SnapshotResponse;

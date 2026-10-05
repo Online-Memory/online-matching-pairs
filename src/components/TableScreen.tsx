@@ -1,16 +1,21 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 
+import { finishMessage } from "@/lib/client/finish-message";
 import { useMe } from "@/lib/client/use-me";
 import { useTable } from "@/lib/client/use-table";
 import type { PublicEvent, TableView } from "@/lib/protocol";
 
 import { Board } from "./Board";
+import { CELEBRATION_MS, Confetti } from "./Confetti";
+import { FinishBanner } from "./FinishBanner";
+import { FlipBackBar } from "./FlipBackBar";
 import { Lobby } from "./Lobby";
 import { Results } from "./Results";
 import { Scoreboard } from "./Scoreboard";
+import { Spotlight } from "./Spotlight";
 
 export function TableScreen({ code }: { code: string }) {
   const table = useTable(code);
@@ -22,6 +27,72 @@ export function TableScreen({ code }: { code: string }) {
     const id = setTimeout(clearActionError, 3500);
     return () => clearTimeout(id);
   }, [actionError, clearActionError]);
+
+  // Confetti when a game finishes while we are watching it, not for a table that was already over.
+  const [confetti, setConfetti] = useState(false);
+  const lastStatus = useRef<string | null>(null);
+  const status = view?.status ?? null;
+  const message = view ? finishMessage(view) : null;
+  useEffect(() => {
+    const previous = lastStatus.current;
+    lastStatus.current = status;
+    if (previous !== "playing" || status !== "finished") return;
+    setConfetti(true);
+    const id = setTimeout(() => setConfetti(false), CELEBRATION_MS);
+    return () => clearTimeout(id);
+  }, [status]);
+
+  // A freshly matched pair gets a short celebration. Events already there on first load are history.
+  const [celebrating, setCelebrating] = useState<number[]>([]);
+  const seenSeq = useRef<number | null>(null);
+  useEffect(() => {
+    const last = table.events.at(-1);
+    if (!last) return;
+    const previous = seenSeq.current;
+    seenSeq.current = last.seq;
+    if (previous === null) return;
+    const matched = table.events.findLast((e) => e.seq > previous && e.type === "pair_matched");
+    if (matched?.type !== "pair_matched") return;
+    setCelebrating(matched.tileIds);
+    const id = setTimeout(() => setCelebrating([]), 1400);
+    return () => clearTimeout(id);
+  }, [table.events]);
+
+  // After a miss the player whose turn it is can click anywhere to turn the pair face down early.
+  const canDismiss =
+    view?.status === "playing" && view.lockUntil !== null && view.turn?.playerId === view.youId;
+  const dismissRef = useRef(table.dismiss);
+  useEffect(() => {
+    dismissRef.current = table.dismiss;
+  });
+  // The click that follows a dismissing press must not also flip the tile under the cursor, even when
+  // the turn comes straight back to this player (solo game) and the tile is flippable again by then.
+  const swallowClick = useRef(false);
+  useEffect(() => {
+    if (!canDismiss) return;
+    let clearTimer: ReturnType<typeof setTimeout> | undefined;
+    const onPointerDown = (e: PointerEvent) => {
+      if (e.button !== 0) return;
+      swallowClick.current = true;
+      clearTimeout(clearTimer);
+      clearTimer = setTimeout(() => (swallowClick.current = false), 1000);
+      void dismissRef.current();
+    };
+    window.addEventListener("pointerdown", onPointerDown);
+    // The swallow timer is left running on purpose: the click arrives after the dismiss ended the lock.
+    return () => window.removeEventListener("pointerdown", onPointerDown);
+  }, [canDismiss]);
+  useEffect(() => {
+    // Capture phase on window runs before React's handlers, so the tile never sees this click.
+    const onClick = (e: MouseEvent) => {
+      if (!swallowClick.current) return;
+      swallowClick.current = false;
+      e.stopPropagation();
+      e.preventDefault();
+    };
+    window.addEventListener("click", onClick, true);
+    return () => window.removeEventListener("click", onClick, true);
+  }, []);
 
   if (table.loadError?.code === "not_found") {
     return (
@@ -48,24 +119,29 @@ export function TableScreen({ code }: { code: string }) {
   const revealedCount = view.tiles.filter((t) => t.state === "revealed").length;
   const canFlip = myTurn && revealedCount < 2 && !table.pending;
 
+  // In a running game the bar lives in the side column so the board gets the full height.
+  const tableBar = (
+    <header className="table-bar">
+      <h1 className="table-title">
+        Table <span data-testid="table-code-bar">{view.code}</span>
+      </h1>
+      {table.reconnecting && <span className="pill">Reconnecting…</span>}
+      {view.status === "playing" && you && you.status !== "left" && (
+        <button
+          type="button"
+          className="button-quiet"
+          onClick={() => void table.leave()}
+          disabled={table.pending}
+        >
+          Leave game
+        </button>
+      )}
+    </header>
+  );
+
   return (
     <main className="page table-page" data-status={view.status} data-my-turn={myTurn}>
-      <header className="table-bar">
-        <h1 className="table-title">
-          Table <span data-testid="table-code-bar">{view.code}</span>
-        </h1>
-        {table.reconnecting && <span className="pill">Reconnecting…</span>}
-        {view.status === "playing" && you && you.status !== "left" && (
-          <button
-            type="button"
-            className="button-quiet"
-            onClick={() => void table.leave()}
-            disabled={table.pending}
-          >
-            Leave game
-          </button>
-        )}
-      </header>
+      {view.status === "lobby" && tableBar}
 
       {view.status === "lobby" ? (
         <Lobby
@@ -77,43 +153,65 @@ export function TableScreen({ code }: { code: string }) {
           onLeave={() => void table.leave()}
         />
       ) : (
-        <>
-          <Scoreboard view={view} serverOffset={table.serverOffset} />
-          <p className="status-line" role="status" data-testid="status-line">
-            {statusText(view, myTurn)}
-          </p>
-          {you?.status === "away" && view.status === "playing" && (
-            <div className="away-banner">
-              <p>You missed three turns in a row, so your turns are being skipped.</p>
-              <button
-                type="button"
-                className="button"
-                onClick={() => void table.join()}
-                disabled={table.pending}
-              >
-                I&apos;m back
-              </button>
-            </div>
-          )}
-          {view.status === "finished" && <Results view={view} />}
-          {view.status === "abandoned" && (
-            <div className="notice-block">
-              <p>This game ended because everyone left or stopped playing.</p>
-              <Link className="button" href="/">
-                Set up a new table
-              </Link>
-            </div>
-          )}
+        <div className="table-layout">
+          <div className="table-side">
+            {tableBar}
+            <Scoreboard view={view} serverOffset={table.serverOffset} />
+            <p className="status-line" role="status" data-testid="status-line">
+              {statusText(view, myTurn)}
+            </p>
+            {view.status === "playing" && view.lockUntil !== null && (
+              <FlipBackBar
+                key={view.lockUntil}
+                lockUntil={view.lockUntil}
+                serverOffset={table.serverOffset}
+                canDismiss={canDismiss}
+              />
+            )}
+            {you?.status === "away" && view.status === "playing" && (
+              <div className="away-banner">
+                <p>You missed three turns in a row, so your turns are being skipped.</p>
+                <button
+                  type="button"
+                  className="button"
+                  onClick={() => void table.join()}
+                  disabled={table.pending}
+                >
+                  I&apos;m back
+                </button>
+              </div>
+            )}
+            {view.status === "finished" && <Results view={view} />}
+            {view.status === "abandoned" && (
+              <div className="notice-block">
+                <p>This game ended because everyone left or stopped playing.</p>
+                <Link className="button" href="/">
+                  Set up a new table
+                </Link>
+              </div>
+            )}
+          </div>
           <Board
             tiles={view.tiles}
             theme={view.theme}
             players={view.players}
             canFlip={canFlip}
+            celebrating={celebrating}
             onFlip={(id) => void table.flip(id)}
           />
-          <p className="activity" aria-live="polite">
-            {describe(table.events.at(-1), view)}
-          </p>
+          <div className="table-foot">
+            {view.status === "playing" && <Spotlight view={view} />}
+            <p className="activity" aria-live="polite">
+              {describe(table.events.at(-1), view)}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {confetti && view && (
+        <>
+          {message && <FinishBanner message={message} durationMs={CELEBRATION_MS} />}
+          <Confetti />
         </>
       )}
 
@@ -134,7 +232,9 @@ function statusText(view: TableView, myTurn: boolean) {
   if (view.status === "finished") return "Game over";
   if (view.status === "abandoned") return "Game abandoned";
   if (!view.youId && view.status === "playing") return "You're watching this game";
-  if (view.lockUntil !== null) return "No match. Flipping back…";
+  if (view.lockUntil !== null) {
+    return view.turn?.playerId === view.youId ? "No match. Flipping back…" : "No match. Flipping back…";
+  }
   if (!view.turn) return "Waiting for players to come back";
   if (myTurn) return "Your turn. Flip two tiles.";
   return `${nameOf(view, view.turn.playerId)}'s turn`;

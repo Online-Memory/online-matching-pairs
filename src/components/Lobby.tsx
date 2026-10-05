@@ -39,7 +39,7 @@ export function Lobby({ view, needsName, pending, onJoin, onStart, onLeave }: Pr
 
       <p className="lobby-settings">
         {getTheme(view.theme)?.name} theme, {view.pairs * 2} tiles, {view.turnSeconds}s per turn, up to{" "}
-        {view.maxPlayers} {view.maxPlayers === 1 ? "player" : "players"}
+        {view.maxPlayers} players
       </p>
 
       <ul className="lobby-players" aria-label="Seated players">
@@ -51,11 +51,12 @@ export function Lobby({ view, needsName, pending, onJoin, onStart, onLeave }: Pr
             {p.id === view.youId && <span className="seat-note"> (you)</span>}
           </li>
         ))}
-        {Array.from({ length: view.maxPlayers - view.players.length }, (_, i) => (
-          <li key={`empty-${i}`} className="lobby-empty">
-            Open seat
+        {!full && (
+          <li className="lobby-empty">
+            {view.maxPlayers - view.players.length} open{" "}
+            {view.maxPlayers - view.players.length === 1 ? "seat" : "seats"}
           </li>
-        ))}
+        )}
       </ul>
 
       {!isPlayer &&

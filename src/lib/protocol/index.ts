@@ -16,11 +16,12 @@ export const codeSchema = z
   .transform((s) => s.toUpperCase())
   .pipe(z.string().regex(new RegExp(`^[${CODE_ALPHABET}]{${CODE_LENGTH}}$`), "Invalid table code"));
 
-export const MIN_PLAYERS = 1;
-/** Guests can host small tables; signing in raises the cap. Joining a table is never gated. */
+/** The host's sign-in state fixes how many players can join: guests get small tables, signed-in hosts get 12. Joining is never gated. */
 export const GUEST_MAX_PLAYERS = 4;
 export const MAX_PLAYERS = 12;
 export const maxPlayersFor = (signedIn: boolean) => (signedIn ? MAX_PLAYERS : GUEST_MAX_PLAYERS);
+/** How long a mismatched pair stays face up unless its player flips it back sooner. */
+export const MISMATCH_LOCK_MS = 5_000;
 export const TURN_SECONDS_OPTIONS = [10, 15, 20, 30, 45, 60] as const;
 
 export const displayNameSchema = z
@@ -40,7 +41,6 @@ export const createTableRequestSchema = z.object({
     .number()
     .int()
     .refine((n) => (PAIR_OPTIONS as readonly number[]).includes(n), "Unsupported board size"),
-  maxPlayers: z.number().int().min(MIN_PLAYERS).max(MAX_PLAYERS),
   // The fixed options are what the UI offers; 3s is allowed so timeout behaviour can be tested quickly.
   turnSeconds: z.number().int().min(3).max(120),
   name: displayNameSchema.optional(),
@@ -93,7 +93,7 @@ export type TableView = {
   tiles: TileView[];
   /** Deadline is server epoch ms; the client renders a countdown, the server decides expiry. */
   turn: { playerId: string; deadline: number } | null;
-  /** Mismatched tiles stay face up until this server time, then flip back. */
+  /** Mismatched tiles stay face up until this server time (or until the player dismisses them). */
   lockUntil: number | null;
   seq: number;
 };
@@ -136,7 +136,11 @@ export type SnapshotResponse = {
   events: PublicEvent[];
 };
 
-export type PollResponse = { unchanged: true; serverNow: number } | SnapshotResponse;
+/**
+ * `unchanged` still says who the server thinks is asking (`youId`, as in `TableView`), so a client
+ * that was once given a view for the wrong identity notices and asks for a fresh one.
+ */
+export type PollResponse = { unchanged: true; serverNow: number; youId: string | null } | SnapshotResponse;
 
 export type CreateTableResponse = { code: string };
 

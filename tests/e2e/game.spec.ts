@@ -18,26 +18,19 @@ test("two guests play a game to the end", async ({ newPlayer }) => {
   expect(pairs.map(Number).reduce((a, b) => a + b, 0)).toBe(8);
 });
 
-test("guests can host at most 4 players", async ({ newPlayer }) => {
+test("guests can seat 4 players and nobody has to be chosen up front", async ({ newPlayer }) => {
   const ann = await newPlayer("Ann");
   await ann.page.goto("/");
-  const options = ann.page.getByLabel("Players").locator("option");
-  await expect(options).toHaveText(["Just me", "Up to 2", "Up to 3", "Up to 4"]);
+  await expect(ann.page.getByLabel("Players")).toHaveCount(0);
+  await expect(ann.page.getByText("up to 4")).toBeVisible();
 
-  // The dropdown is a convenience; the API is the real gate.
-  const response = await ann.page.request.post("/api/tables", {
-    data: { theme: "001", pairs: 8, maxPlayers: 5, turnSeconds: 20, name: "Ann" },
-  });
-  expect(response.status()).toBe(400);
-  expect(await response.text()).toContain("Sign in to host up to 12");
-
-  await createTable(ann, { maxPlayers: 4 });
-  await expect(ann.page.locator(".lobby-empty")).toHaveCount(3);
+  await createTable(ann);
+  await expect(ann.page.locator(".lobby-empty")).toHaveText("3 open seats");
 });
 
 test("solo practice game", async ({ newPlayer }) => {
   const ann = await newPlayer("Ann");
-  await createTable(ann, { pairs: 8, maxPlayers: 1 });
+  await createTable(ann, { pairs: 8 });
   await ann.page.getByRole("button", { name: "Start solo game" }).click();
   await playToEnd([ann]);
   await expect(ann.page.getByRole("heading", { level: 2 })).toHaveText(/All 8 pairs in \d+ moves/);
@@ -122,7 +115,7 @@ test("when the host leaves, the next seat becomes host", async ({ newPlayer }) =
   const ann = await newPlayer("Ann");
   const ben = await newPlayer("Ben");
   const cy = await newPlayer("Cy");
-  const code = await createTable(ann, { maxPlayers: 3 });
+  const code = await createTable(ann);
   await joinTable(ben, code);
   await joinTable(cy, code);
 
@@ -145,20 +138,22 @@ test("joining an unknown or full table explains what happened", async ({ newPlay
   const ann = await newPlayer("Ann");
   const ben = await newPlayer("Ben");
   const cy = await newPlayer("Cy");
+  const di = await newPlayer("Di");
+  const ed = await newPlayer("Ed");
 
-  await cy.page.goto("/table/ZZZZZZ");
-  await expect(cy.page.getByRole("heading", { name: "No table called ZZZZZZ" })).toBeVisible();
+  await ed.page.goto("/table/ZZZZZZ");
+  await expect(ed.page.getByRole("heading", { name: "No table called ZZZZZZ" })).toBeVisible();
 
-  const code = await createTable(ann, { maxPlayers: 2 });
-  await joinTable(ben, code);
-  await cy.page.goto(`/table/${code}`);
-  await expect(cy.page.getByText("This table is full.")).toBeVisible();
-  await expect(cy.page.getByRole("button", { name: "Join table" })).toHaveCount(0);
+  const code = await createTable(ann);
+  for (const p of [ben, cy, di]) await joinTable(p, code);
+  await ed.page.goto(`/table/${code}`);
+  await expect(ed.page.getByText("This table is full.")).toBeVisible();
+  await expect(ed.page.getByRole("button", { name: "Join table" })).toHaveCount(0);
 });
 
 test("the board fits a phone screen", async ({ newPlayer }) => {
   const ann = await newPlayer("Ann", { mobile: true });
-  await createTable(ann, { pairs: 18, maxPlayers: 1 });
+  await createTable(ann, { pairs: 18 });
   await ann.page.getByRole("button", { name: "Start solo game" }).click();
   const box = await ann.page.locator(".board").boundingBox();
   expect(box!.x).toBeGreaterThanOrEqual(0);

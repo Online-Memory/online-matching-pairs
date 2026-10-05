@@ -53,6 +53,7 @@ export const api = {
   start: (code: string, since: number) => post<SnapshotResponse>(table(code, "start", since)),
   flip: (code: string, since: number, tileId: number) =>
     post<SnapshotResponse>(table(code, "flip", since), { tileId }),
+  dismiss: (code: string, since: number) => post<SnapshotResponse>(table(code, "dismiss", since)),
   leave: (code: string, since: number) => post<SnapshotResponse>(table(code, "leave", since)),
   me: () => request<MeResponse>("/api/me"),
   history: () => request<HistoryEntry[]>("/api/me/history"),

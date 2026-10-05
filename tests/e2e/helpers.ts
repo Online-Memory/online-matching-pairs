@@ -2,15 +2,15 @@ import type { Page } from "@playwright/test";
 
 import { expect, type Player } from "./fixtures";
 
-export type TableOptions = { pairs?: number; maxPlayers?: number; turnSeconds?: number; theme?: string };
+export type TableOptions = { pairs?: number; turnSeconds?: number; theme?: string };
 
 /** Creates a table through the UI for the standard options, or the API for test-only ones. */
 export async function createTable(host: Player, options: TableOptions = {}): Promise<string> {
-  const { pairs = 8, maxPlayers = 2, turnSeconds = 20, theme = "001" } = options;
+  const { pairs = 8, turnSeconds = 20, theme = "001" } = options;
   const { page } = host;
   if (turnSeconds < 10) {
     const response = await page.request.post("/api/tables", {
-      data: { theme, pairs, maxPlayers, turnSeconds, name: host.name },
+      data: { theme, pairs, turnSeconds, name: host.name },
     });
     expect(response.status()).toBe(201);
     const { code } = (await response.json()) as { code: string };
@@ -19,7 +19,6 @@ export async function createTable(host: Player, options: TableOptions = {}): Pro
     await page.goto("/");
     await page.getByLabel("Your name").fill(host.name);
     await page.getByLabel("Tiles").selectOption(String(pairs * 2));
-    await page.getByLabel("Players").selectOption(String(maxPlayers));
     await page.getByLabel("Seconds per turn").selectOption(String(turnSeconds));
     await page.getByRole("button", { name: "Create table" }).click();
     await page.waitForURL(/\/table\/[A-Z2-9]{6}$/);

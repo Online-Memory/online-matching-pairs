@@ -75,7 +75,10 @@ export class TableService {
   /** Poll: applies any due deadlines, then answers relative to the client's last seen `since`. */
   async poll(code: string, viewerId: string | null, since: number): Promise<PollResponse> {
     const { state, ring } = await this.transact(code, null);
-    if (since >= state.seq) return { unchanged: true, serverNow: this.clock() };
+    if (since >= state.seq) {
+      const seated = viewerId !== null && state.players.some((p) => p.id === viewerId);
+      return { unchanged: true, serverNow: this.clock(), youId: seated ? viewerId : null };
+    }
     return this.snapshot(state, ring, viewerId, since);
   }
 

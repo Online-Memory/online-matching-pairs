@@ -34,6 +34,8 @@ export type TableHandle = {
   join: (name?: string) => Promise<void>;
   start: () => Promise<void>;
   flip: (tileId: number) => Promise<void>;
+  /** Turns a missed pair face down now instead of waiting for the lock to expire. */
+  dismiss: () => Promise<void>;
   leave: () => Promise<void>;
   clearActionError: () => void;
 };
@@ -59,15 +61,23 @@ export function useTable(code: string): TableHandle {
   const inFlight = useRef(false);
   const stopped = useRef(false);
 
-  const apply = useCallback((response: PollResponse | SnapshotResponse) => {
+  /** Returns true when the view we hold was built for a different identity and must be refetched. */
+  const apply = useCallback((response: PollResponse | SnapshotResponse): boolean => {
     setServerOffset(response.serverNow - Date.now());
-    if (response.unchanged) return;
+    if (response.unchanged) {
+      // "Nothing changed" is only true for the identity our view was built for. If the server now sees
+      // us differently (e.g. one poll was answered for nobody), drop `since` to get a fresh snapshot.
+      const stale = viewRef.current !== null && response.youId !== viewRef.current.youId;
+      if (stale) since.current = -1;
+      return stale;
+    }
     // A slow poll can land after a newer action response; never move backwards.
-    if (response.view.seq < since.current) return;
+    if (response.view.seq < since.current) return false;
     since.current = response.view.seq;
     viewRef.current = response.view;
     setView(response.view);
     if (response.events.length) setEvents((prev) => [...prev, ...response.events].slice(-20));
+    return false;
   }, []);
 
   // The timer calls whatever `poll` is current, so scheduling doesn't depend on it.
@@ -82,11 +92,11 @@ export function useTable(code: string): TableHandle {
     if (inFlight.current || stopped.current) return;
     inFlight.current = true;
     try {
-      apply(await api.poll(code, since.current));
+      const stale = apply(await api.poll(code, since.current));
       failures.current = 0;
       setReconnecting(false);
       setLoadError(null);
-      schedule(pollDelay(viewRef.current, document.hidden, POLL_OVERRIDE));
+      schedule(stale ? 0 : pollDelay(viewRef.current, document.hidden, POLL_OVERRIDE));
     } catch (error) {
       const apiError = error instanceof ApiError ? error : new ApiError("internal", String(error), 0);
       if (apiError.code === "not_found") {
@@ -152,6 +162,7 @@ export function useTable(code: string): TableHandle {
     join: (name) => run((s) => api.join(code, s, name)),
     start: () => run((s) => api.start(code, s)),
     flip: (tileId) => run((s) => api.flip(code, s, tileId)),
+    dismiss: () => run((s) => api.dismiss(code, s)),
     leave: () => run((s) => api.leave(code, s)),
     clearActionError: () => setActionError(null),
   };

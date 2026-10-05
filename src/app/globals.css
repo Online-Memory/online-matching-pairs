@@ -588,6 +588,39 @@ a {
   min-height: 1.5em;
 }
 
+.flip-back {
+  margin: 0 0 0.75rem;
+}
+
+.flip-back-track {
+  height: 0.375rem;
+  border-radius: 999px;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--ink-soft) 25%, transparent);
+}
+
+.flip-back-fill {
+  height: 100%;
+  background: var(--signal);
+  transform-origin: left;
+  animation: flip-back-drain var(--drain-ms) linear forwards;
+}
+
+.flip-back-hint {
+  margin: 0.375rem 0 0;
+  font-size: 0.875rem;
+  color: var(--ink-soft);
+}
+
+@keyframes flip-back-drain {
+  from {
+    transform: scaleX(var(--from));
+  }
+  to {
+    transform: scaleX(0);
+  }
+}
+
 .table-page[data-my-turn="true"] .status-line {
   color: var(--link-strong);
 }
@@ -645,6 +678,20 @@ a {
   perspective: 600px;
   cursor: default;
   -webkit-tap-highlight-color: transparent;
+  /* A tile mid-flip bulges past its cell, so it must paint above its neighbours. Face-up tiles sit
+     higher; a tile flipping back down keeps its height until the flip ends (delayed z-index). */
+  position: relative;
+  z-index: 0;
+  transition: z-index 0s linear var(--flip-duration);
+}
+
+.tile:not([data-state="hidden"]) {
+  z-index: 2;
+  transition-delay: 0s;
+}
+
+.tile[data-state="matched"] {
+  z-index: 1;
 }
 
 .board[data-can-flip="true"] .tile[data-state="hidden"] {
@@ -698,6 +745,272 @@ a {
 .tile[data-state="matched"] .tile-face {
   box-shadow: 0 0 0 3px var(--seat);
   filter: saturate(0.85);
+}
+
+/* Pair found: the two tiles pop, a ring bursts out of each and sparkles fly off. Starts once the
+   second tile has finished turning over. */
+@media (prefers-reduced-motion: no-preference) {
+  .tile[data-celebrate="true"] {
+    z-index: 4;
+    animation: pair-pop 700ms var(--flip-duration) both;
+  }
+
+  .tile[data-celebrate="true"]::before,
+  .tile[data-celebrate="true"]::after {
+    content: "";
+    position: absolute;
+    pointer-events: none;
+    opacity: 0;
+  }
+
+  .tile[data-celebrate="true"]::before {
+    inset: 0;
+    border-radius: var(--radius-tile);
+    border: 4px solid var(--signal);
+    animation: pair-ring 800ms var(--flip-duration) ease-out both;
+  }
+
+  .tile[data-celebrate="true"]::after {
+    inset: -30%;
+    background:
+      radial-gradient(circle, var(--signal) 0 3px, transparent 4px) 50% 0 / 100% 100% no-repeat,
+      radial-gradient(circle, var(--signal) 0 3px, transparent 4px) 100% 50% / 100% 100% no-repeat,
+      radial-gradient(circle, var(--signal) 0 3px, transparent 4px) 50% 100% / 100% 100% no-repeat,
+      radial-gradient(circle, var(--signal) 0 3px, transparent 4px) 0 50% / 100% 100% no-repeat,
+      radial-gradient(circle, #fff 0 2px, transparent 3px) 85% 15% / 100% 100% no-repeat,
+      radial-gradient(circle, #fff 0 2px, transparent 3px) 15% 85% / 100% 100% no-repeat;
+    animation: pair-sparkle 900ms var(--flip-duration) ease-out both;
+  }
+}
+
+@keyframes pair-pop {
+  0% {
+    transform: scale(1);
+  }
+  35% {
+    transform: scale(1.18);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes pair-ring {
+  0% {
+    opacity: 0.9;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.7);
+  }
+}
+
+@keyframes pair-sparkle {
+  0% {
+    opacity: 1;
+    transform: scale(0.5) rotate(0deg);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.2) rotate(30deg);
+  }
+}
+
+/* Game over confetti: a canvas drawn over everything, ignoring the pointer. */
+.confetti {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 50;
+}
+
+/* Game over headline: above the board, below the confetti (z-index 50). */
+.finish-banner {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-content: center;
+  gap: 0.5rem;
+  padding: 1.5rem;
+  text-align: center;
+  pointer-events: none;
+  color: #fff;
+  text-shadow:
+    0 2px 0 rgb(0 0 0 / 0.35),
+    0 6px 28px rgb(0 0 0 / 0.55);
+  animation: finish-banner var(--banner-ms) ease-out both;
+}
+
+.finish-banner-title {
+  margin: 0;
+  font-size: clamp(2.5rem, 9vw, 6.5rem);
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+
+.finish-banner[data-won="true"] .finish-banner-title {
+  color: var(--signal);
+}
+
+.finish-banner-detail {
+  margin: 0;
+  font-size: clamp(1rem, 2.6vw, 1.75rem);
+  font-weight: 600;
+}
+
+/* Zoom + fade in over the first ~0.6s, hold, then fade out as the confetti ends. */
+@keyframes finish-banner {
+  0% {
+    opacity: 0;
+    transform: scale(0.55);
+  }
+  9% {
+    opacity: 1;
+    transform: scale(1.06);
+  }
+  13% {
+    transform: scale(1);
+  }
+  88% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.04);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .finish-banner {
+    animation-name: finish-banner-fade;
+  }
+  @keyframes finish-banner-fade {
+    0% {
+      opacity: 0;
+    }
+    9%,
+    88% {
+      opacity: 1;
+    }
+    100% {
+      opacity: 0;
+    }
+  }
+}
+
+.spotlight {
+  display: none;
+}
+
+/*
+ * Wide screens: the table fills the viewport, scores sit beside the board, and the board
+ * (see Board.tsx, fitGrid) sizes its tiles to the space left so it never scrolls.
+ */
+@media (min-width: 64rem) and (min-height: 32rem) {
+  .table-page {
+    display: flex;
+    flex-direction: column;
+    height: calc(100dvh - 3.75rem);
+    padding-bottom: 1rem;
+  }
+
+  .table-layout {
+    flex: 1;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 21rem;
+    grid-template-rows: minmax(0, 1fr) auto;
+    column-gap: 1.25rem;
+  }
+
+  .table-side {
+    grid-column: 2;
+    grid-row: 1;
+    min-height: 0;
+    overflow-y: auto;
+  }
+
+  .table-foot {
+    grid-column: 2;
+    grid-row: 2;
+  }
+
+  .board-area {
+    grid-column: 1;
+    grid-row: 1 / span 2;
+    min-width: 0;
+    min-height: 0;
+    display: grid;
+    place-items: center;
+  }
+
+  .board {
+    width: auto;
+    min-width: 0;
+    margin: 0;
+    grid-template-columns: repeat(var(--fit-cols, var(--cols)), var(--fit-size, minmax(0, 1fr)));
+    gap: var(--fit-gap, 6px);
+  }
+
+  .scoreboard {
+    grid-template-columns: 1fr;
+  }
+
+  .scoreboard:has(> :nth-child(5)) .seat {
+    grid-template-areas: "token name pairs timer";
+    padding-block: 0.25rem;
+  }
+  .scoreboard:has(> :nth-child(5)) .seat-meta {
+    display: none;
+  }
+
+  .spotlight {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+    margin-top: 0.75rem;
+  }
+
+  .spotlight-slot {
+    aspect-ratio: 1;
+    border-radius: var(--radius-tile);
+    border: 2px dashed var(--line);
+    overflow: hidden;
+  }
+
+  .spotlight-slot[data-filled="true"] {
+    border: 3px solid var(--signal);
+  }
+
+  .spotlight-slot img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  /* Let a mouse user take a closer look at any face-up tile while the game is on. */
+  @media (hover: hover) {
+    .table-page[data-status="playing"] .tile:not([data-state="hidden"]):hover {
+      z-index: 5;
+    }
+    .table-page[data-status="playing"] .tile:not([data-state="hidden"]):hover .tile-inner {
+      /* Zooming grows a tile by (scale - 1) / 2 of its size on each side; edge tiles lean inward by that much. */
+      --zoom-scale: 1.3;
+      --zoom-shift: calc((var(--zoom-scale) - 1) / 2 * 100%);
+      transform: translate(
+          calc(var(--zoom-x, 0) * var(--zoom-shift)),
+          calc(var(--zoom-y, 0) * var(--zoom-shift))
+        )
+        rotateY(180deg) scale(var(--zoom-scale));
+    }
+  }
 }
 
 /* ------------------------------------------------------------------- lobby */

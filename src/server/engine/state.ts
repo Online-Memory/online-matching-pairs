@@ -2,10 +2,14 @@ import "server-only";
 
 import { z } from "zod";
 
+import { MISMATCH_LOCK_MS } from "@/lib/protocol";
+
 /** Timings the rules depend on. Exported so tests can reason about them. */
 export const RULES = {
-  /** Mismatched pair stays face up this long. Long enough for a 1s poll to see it. */
-  mismatchLockMs: 1_500,
+  /** Mismatched pair stays face up this long unless the player dismisses it sooner. */
+  mismatchLockMs: MISMATCH_LOCK_MS,
+  /** A dismissal is ignored until the pair has been face up this long, so a 1s poll always sees it. */
+  minRevealMs: 1_500,
   /** Consecutive turn timeouts before a player is marked away and skipped. */
   timeoutsBeforeAway: 3,
   /** Table is abandoned when nobody active is left for this long. */
@@ -62,6 +66,8 @@ export const gameStateSchema = z.object({
   revealed: z.array(z.number().int()),
   turn: z.object({ playerId: z.string(), deadline: z.number() }).nullable(),
   lockUntil: z.number().nullable(),
+  /** When the current flip-back lock began. Dismissals measure the minimum reveal from here, not from lockUntil, which they move. */
+  lockStartedAt: z.number().nullable().default(null),
   lobbyExpiresAt: z.number().nullable(),
   abandonAt: z.number().nullable(),
   seq: z.number().int(),
