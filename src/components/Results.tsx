@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import type { TableView } from "@/lib/protocol";
 
+import { RatingChange } from "./RatingChange";
 import { ordinal } from "./Scoreboard";
 
 export function Results({ view }: { view: TableView }) {
@@ -46,6 +47,7 @@ export function Results({ view }: { view: TableView }) {
           ))}
         </tbody>
       </table>
+      <RatingChange code={view.code} versus={view.players.length >= 2} />
       <Link className="button" href="/">
         Set up another table
       </Link>

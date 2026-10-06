@@ -22,7 +22,9 @@ Check every change against:
    `no-restricted-imports` rule in `eslint.config.mjs` is not weakened.
 4. **History and directory.** `src/server/db/history.ts` and `/api/me/history` read only `games` and `game_players`,
    never `table_state`. The same holds for `src/server/db/public-tables.ts` and `/api/public-tables`, which may expose
-   only code, theme, size, status, seats and host name: no tiles, turn data or player list.
+   only code, theme, size, status, seats and host name: no tiles, turn data or player list. And for
+   `src/server/db/ratings.ts`, `src/server/ratings/`, `/api/leaderboard` and `/api/me/stats`, which may also read
+   `player_ratings` and `profiles` but never `table_state`, and never expose account ids.
 5. **Timing.** A missed pair stays face up long enough for a 1s poll (1.5s), and flips are rejected meanwhile.
 6. **Randomness.** Faces are shuffled with the injected `Rng` backed by `crypto.randomInt`, not `Math.random`.
 7. **Images.** A theme picture URL for a face is built only once that face is shown; `Tile`/`Board` render nothing

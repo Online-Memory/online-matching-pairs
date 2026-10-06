@@ -6,6 +6,7 @@ import type { SnapshotResponse } from "@/lib/protocol";
 import { getViewer } from "@/server/auth";
 import type { Action } from "@/server/engine";
 import { route, sinceParam, tableCode } from "@/server/http";
+import { rateAfterResponse } from "@/server/ratings/after";
 import { getTableService, ServiceError } from "@/server/tables";
 
 type Context = { params: Promise<{ code: string }> };
@@ -19,8 +20,8 @@ export function playerAction(toAction: (request: Request) => Promise<Action>) {
     const action = await toAction(request);
     const service = await getTableService();
     const identity = { playerId: viewer.playerId, userId: viewer.userId, name: viewer.accountName ?? "" };
-    return NextResponse.json<SnapshotResponse>(
-      await service.act(code, identity, action, sinceParam(request)),
-    );
+    const snapshot = await service.act(code, identity, action, sinceParam(request));
+    if (snapshot.view.status === "finished") rateAfterResponse(code);
+    return NextResponse.json<SnapshotResponse>(snapshot);
   });
 }

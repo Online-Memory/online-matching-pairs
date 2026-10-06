@@ -247,3 +247,18 @@ describe("invites", () => {
     expect((await friends.list(bob.id)).invites).toHaveLength(1);
   });
 });
+
+describe("friendIds", () => {
+  it("lists accepted friends only", async () => {
+    const aliceHandle = await friends.touch(alice);
+    const bobHandle = await friends.touch(bob);
+    await friends.touch(carol);
+    await friends.request(alice, bobHandle);
+    await friends.accept(bob, alice.id);
+    await friends.request(carol, aliceHandle);
+
+    expect(await friends.friendIds(alice.id)).toEqual(["bob"]);
+    expect(await friends.friendIds(bob.id)).toEqual(["alice"]);
+    expect(await friends.friendIds(carol.id)).toEqual([]);
+  });
+});

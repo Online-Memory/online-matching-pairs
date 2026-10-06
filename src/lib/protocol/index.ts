@@ -200,8 +200,48 @@ export type HistoryEntry = {
   theme: string;
   pairs: number;
   finishedAt: string;
-  you: { pairs: number; moves: number; bestStreak: number; rank: number | null };
+  you: {
+    pairs: number;
+    moves: number;
+    bestStreak: number;
+    rank: number | null;
+    /** Null until the game is rated, and for games that are never rated. */
+    ratingBefore: number | null;
+    ratingAfter: number | null;
+  };
   players: { name: string; pairs: number; rank: number | null; isYou: boolean }[];
+};
+
+export type LeaderboardEntry = {
+  rank: number;
+  /** Null for a player who has no profile yet. */
+  handle: string | null;
+  name: string;
+  rating: number;
+  ratedGames: number;
+  wins: number;
+  isYou: boolean;
+};
+
+export type LeaderboardScope = "global" | "friends";
+
+export type LeaderboardResponse = {
+  scope: LeaderboardScope;
+  entries: LeaderboardEntry[];
+  /** The viewer's own row (also when outside `entries`), or null for guests and unrated players. */
+  me: LeaderboardEntry | null;
+};
+
+export type StatsResponse = {
+  games: number;
+  /** Finished games with 2 or more players; `wins` and `winRate` are over these. */
+  versusGames: number;
+  wins: number;
+  winRate: number | null;
+  bestStreak: number;
+  /** Pairs per move, 0 to 1. */
+  accuracy: number | null;
+  rating: { value: number; ratedGames: number; rank: number } | null;
 };
 
 export type MeResponse = {

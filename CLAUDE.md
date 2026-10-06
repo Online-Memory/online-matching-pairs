@@ -19,8 +19,12 @@ Turn-based memory game, one Next.js app on Vercel backed by Neon Postgres. Clien
   `toView` live in `engine.ts`; the state schema in `state.ts`.
 - `src/server/tables/service.ts`: `TableService`: load row → `tick(now)` → engine action → compare-and-set save.
 - `src/server/db/`: drivers (Neon, Postgres, PGlite), `tables.ts` (`table_state` + mirroring, incl. `is_public`/`player_count`/`host_name`), `history.ts`,
-  `public-tables.ts` (the public directory).
+  `public-tables.ts` (the public directory), `ratings.ts` (all SQL for ratings, stats, leaderboards).
 - `src/app/api/tables/[code]/*`: route handlers, thin wrappers over `TableService`.
+- `src/server/ratings/`: `rating.ts` (pure pairwise Elo), `service.ts` (`RatingsService`: rate a finished game, sweep
+  unrated ones, leaderboard, stats), `after.ts` (rates after the finishing response via `after()`). Friend ids come
+  from `FriendsService.friendIds`. Routes: `src/app/api/leaderboard`, `src/app/api/me/stats`; the daily cron also
+  sweeps unrated games. Client: `Leaderboard`, `StatsPanel`, `RatingChange`, `use-rating-change.ts`.
 - `src/server/friends/service.ts`: `FriendsService`: profiles (`@handle`), presence heartbeat, friendships and lobby
   invites in `profiles`, `friendships`, `table_invites`. It never reads `table_state`; seating comes from
   `TableService.isSeatedInLobby`. Routes: `src/app/api/friends/*`, `src/app/api/me/{presence,handle}`,
@@ -38,7 +42,9 @@ Turn-based memory game, one Next.js app on Vercel backed by Neon Postgres. Clien
   `tick(now)`, never by timers.
 - Saves are `UPDATE … WHERE version = $expected` with retry. Mirroring into `games`/`game_players` happens in the same
   statement (data-modifying CTEs). No interactive transactions: the Neon HTTP driver can't do them.
-- History queries and the public directory (`GET /api/public-tables`) read `games` and `game_players`, never `table_state`.
+- History queries, the public directory (`GET /api/public-tables`) and ratings/stats/leaderboards read `games`,
+  `game_players` and `player_ratings`, never `table_state`. A game is rated once: `games.rated_at` is claimed in the
+  same single statement that updates every player's `player_ratings` row (version-checked, retried on conflict).
 - Migrations are backward compatible (the old deployment serves until the new one is promoted) and immutable once
   committed. A hook blocks edits to existing migration files.
 
@@ -66,5 +72,5 @@ Turn-based memory game, one Next.js app on Vercel backed by Neon Postgres. Clien
 - Use the `verify` skill before saying work is done.
 - Use the `new-migration` skill for any schema change.
 - Run the `anti-cheat-reviewer` agent when a diff touches `src/server/engine/`, `src/server/tables/`,
-  `src/lib/protocol/`, `src/app/api/tables/`, `src/server/db/history.ts`, `src/server/db/public-tables.ts`, `src/components/Tile.tsx` or
+  `src/lib/protocol/`, `src/app/api/tables/`, `src/server/db/history.ts`, `src/server/db/public-tables.ts`, `src/server/db/ratings.ts`, `src/components/Tile.tsx` or
   `src/components/Board.tsx`.

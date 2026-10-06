@@ -20,6 +20,8 @@ const historyRowSchema = z.object({
       moves: z.number().int(),
       best_streak: z.number().int(),
       rank: z.number().int().nullable(),
+      rating_before: z.number().int().nullable(),
+      rating_after: z.number().int().nullable(),
     }),
   ),
 });
@@ -30,7 +32,8 @@ export async function listHistory(db: Db, userId: string, limit = 20): Promise<H
     `SELECT g.code, g.theme, g.pairs, g.finished_at,
             (SELECT jsonb_agg(jsonb_build_object(
                       'player_id', o.player_id, 'user_id', o.user_id, 'display_name', o.display_name,
-                      'pairs', o.pairs, 'moves', o.moves, 'best_streak', o.best_streak, 'rank', o.rank)
+                      'pairs', o.pairs, 'moves', o.moves, 'best_streak', o.best_streak, 'rank', o.rank,
+                      'rating_before', o.rating_before, 'rating_after', o.rating_after)
                     ORDER BY o.rank NULLS LAST, o.seat)
                FROM game_players o WHERE o.game_id = g.id) AS players
        FROM game_players me
@@ -49,7 +52,14 @@ export async function listHistory(db: Db, userId: string, limit = 20): Promise<H
       theme: row.theme,
       pairs: row.pairs,
       finishedAt: new Date(row.finished_at).toISOString(),
-      you: { pairs: me.pairs, moves: me.moves, bestStreak: me.best_streak, rank: me.rank },
+      you: {
+        pairs: me.pairs,
+        moves: me.moves,
+        bestStreak: me.best_streak,
+        rank: me.rank,
+        ratingBefore: me.rating_before,
+        ratingAfter: me.rating_after,
+      },
       players: row.players.map((p) => ({
         name: p.display_name,
         pairs: p.pairs,

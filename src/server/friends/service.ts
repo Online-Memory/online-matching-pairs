@@ -216,6 +216,17 @@ export class FriendsService {
     return response;
   }
 
+  /** Ids of accepted friends, for features (leaderboards) that need the set but not the details. */
+  async friendIds(userId: string): Promise<string[]> {
+    const rows = await this.db.query<{ friend: string }>(
+      `SELECT CASE WHEN user_a = $1 THEN user_b ELSE user_a END AS friend
+         FROM friendships
+        WHERE status = 'accepted' AND (user_a = $1 OR user_b = $1)`,
+      [userId],
+    );
+    return rows.map((r) => r.friend);
+  }
+
   /** Invite an accepted friend to a lobby you are seated in. Re-inviting refreshes the invite. */
   async invite(account: Account, code: string, toUserId: string): Promise<void> {
     await this.touch(account);

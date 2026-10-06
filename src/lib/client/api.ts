@@ -5,10 +5,13 @@ import type {
   ErrorResponse,
   FriendsResponse,
   HistoryEntry,
+  LeaderboardResponse,
+  LeaderboardScope,
   MeResponse,
   PollResponse,
   PublicTablesResponse,
   SnapshotResponse,
+  StatsResponse,
 } from "@/lib/protocol";
 
 export class ApiError extends Error {
@@ -62,6 +65,8 @@ export const api = {
   publicTables: () => request<PublicTablesResponse>("/api/public-tables"),
   me: () => request<MeResponse>("/api/me"),
   history: () => request<HistoryEntry[]>("/api/me/history"),
+  stats: () => request<StatsResponse>("/api/me/stats"),
+  leaderboard: (scope: LeaderboardScope) => request<LeaderboardResponse>(`/api/leaderboard?scope=${scope}`),
   friends: () => request<FriendsResponse>("/api/friends"),
   sendFriendRequest: (handle: string) => post<{ ok: true }>("/api/friends/requests", { handle }),
   acceptFriend: (userId: string) => send<{ ok: true }>("PATCH", `/api/friends/${encodeURIComponent(userId)}`),

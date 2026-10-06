@@ -14,13 +14,17 @@ export function SiteHeader() {
         Matching Pairs
       </Link>
       <div className="site-header-end">
-        <nav aria-label="Account">
-          {me?.authEnabled &&
-            (me.user ? (
-              <Link href="/profile">{me.user.name}</Link>
-            ) : (
-              <Link href="/auth/sign-in">Sign in</Link>
-            ))}
+        <nav aria-label="Main">
+          {me?.authEnabled && (
+            <>
+              <Link href="/leaderboard">Leaderboard</Link>
+              {me.user ? (
+                <Link href="/profile">{me.user.name}</Link>
+              ) : (
+                <Link href="/auth/sign-in">Sign in</Link>
+              )}
+            </>
+          )}
         </nav>
         <ThemeToggle />
       </div>

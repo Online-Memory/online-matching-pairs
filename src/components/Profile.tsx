@@ -7,18 +7,22 @@ import { useEffect, useState } from "react";
 import { api } from "@/lib/client/api";
 import { authClient } from "@/lib/client/auth-client";
 import { invalidateMe, useMe } from "@/lib/client/use-me";
-import { getTheme, type HistoryEntry } from "@/lib/protocol";
+import { getTheme, type HistoryEntry, type StatsResponse } from "@/lib/protocol";
 
 import { FriendsPanel } from "./FriendsPanel";
 import { ordinal } from "./Scoreboard";
+import { StatsPanel } from "./StatsPanel";
 
 export function Profile() {
   const me = useMe();
   const router = useRouter();
   const [history, setHistory] = useState<HistoryEntry[] | null>(null);
+  const [stats, setStats] = useState<StatsResponse | null>(null);
 
   useEffect(() => {
-    if (me?.user) api.history().then(setHistory, () => setHistory([]));
+    if (!me?.user) return;
+    api.history().then(setHistory, () => setHistory([]));
+    api.stats().then(setStats, () => setStats(null));
   }, [me?.user]);
 
   if (!me) return <p className="notice">Loading…</p>;
@@ -38,6 +42,7 @@ export function Profile() {
     <>
       <h1>{me.user.name}</h1>
       {me.user.email && <p className="hint">{me.user.email}</p>}
+      {stats && <StatsPanel stats={stats} />}
       <FriendsPanel />
       <h2>Finished games</h2>
       {history === null ? (
@@ -57,6 +62,11 @@ export function Profile() {
               <span>
                 {game.you.pairs} pairs in {game.you.moves} moves
               </span>
+              {game.you.ratingBefore !== null && game.you.ratingAfter !== null && (
+                <span>
+                  Rating {game.you.ratingBefore} → {game.you.ratingAfter}
+                </span>
+              )}
               <span className="hint">
                 {game.players.map((p) => (p.isYou ? "you" : p.name)).join(", ")} on{" "}
                 {new Date(game.finishedAt).toLocaleDateString()}

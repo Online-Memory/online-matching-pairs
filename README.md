@@ -36,6 +36,12 @@ browser ── GET /api/tables/ABC234?since=41 (every ~1s while playing) ──�
   mirrors `is_public`, `player_count` and `host_name` in the same save statement, and `GET /api/public-tables`
   (no sign-in, polled every 5s by the home page) lists public lobbies and games in progress from `games` alone:
   code, theme, size, status, seats and host name, no board. Anyone can watch; joining stays lobby-only.
+- **Ratings and leaderboards** (signed-in only): a finished game with 2+ signed-in players is rated with pairwise Elo
+  (start 1000, floor 100; rematches within 24h count for less). `RatingsService` claims `games.rated_at` and updates
+  every player's `player_ratings` row in one version-checked statement, right after the finishing response
+  (`after()`); the daily cron rates anything missed. `GET /api/leaderboard` (global is public, friends needs sign-in)
+  and `GET /api/me/stats` read only `games`, `game_players`, `player_ratings` and `profiles`, and expose handles
+  and names, never account ids. Games finished before the feature shipped are not rated.
 
 ## Develop
 
@@ -68,7 +74,8 @@ in-memory PGlite.
 - The engine, the DB clients and auth live under `src/server/` with `import "server-only"`. ESLint blocks importing
   them, or any DB driver, from components, client libraries, protocol types and pages.
 - Faces are shuffled with `crypto.randomInt`. The public event ring holds only public events.
-- History queries and the public directory read only `games` and `game_players`, never `table_state`.
+- History queries, the public directory and the ratings/stats/leaderboard queries read only `games`, `game_players`,
+  `player_ratings` and `profiles`, never `table_state`.
 - A missed pair stays face up for 5s, long enough for a 1s poll to see it. Flips are rejected during that time. The
   player whose turn it is can end the wait early (`POST …/dismiss`, sent on a left click anywhere); for anyone else it
   does nothing, and an early click only shortens the wait to 1.5s so everyone's poll sees the pair.
@@ -94,4 +101,4 @@ in-memory PGlite.
 
 ## Not built yet
 
-Friends lists, invites, stats dashboards, and claiming guest games after signing up.
+Badges, XP and daily streaks, and claiming guest games after signing up.
