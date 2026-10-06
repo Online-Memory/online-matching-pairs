@@ -34,6 +34,10 @@ export type RosterEntry = {
 
 const toTimestamp = (ms: number | null) => (ms === null ? null : new Date(ms).toISOString());
 
+/** Mirrored into `games` so the public directory never has to read a live board. */
+const hostName = (s: GameState) => s.players.find((p) => p.id === s.hostId)?.name ?? "";
+const seated = (s: GameState) => s.players.filter((p) => p.status !== "left").length;
+
 /** Creates the public game row and its secret live state in one statement. */
 export async function insertTable(
   db: Db,
@@ -42,12 +46,13 @@ export async function insertTable(
   const { gameId, state } = input;
   await db.query(
     `WITH g AS (
-       INSERT INTO games (id, code, host_player_id, theme, pairs, max_players, turn_seconds, status, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::timestamptz)
+       INSERT INTO games (id, code, host_player_id, theme, pairs, max_players, turn_seconds, status, created_at,
+                          is_public, player_count, host_name, table_name)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::timestamptz, $10, $11, $12, $13)
        RETURNING id
      )
      INSERT INTO table_state (game_id, version, state, events, next_due_at)
-     SELECT id, 1, $10::jsonb, $11::jsonb, $12::timestamptz FROM g`,
+     SELECT id, 1, $14::jsonb, $15::jsonb, $16::timestamptz FROM g`,
     [
       gameId,
       state.code,
@@ -58,6 +63,10 @@ export async function insertTable(
       state.turnSeconds,
       state.status,
       toTimestamp(state.createdAt),
+      state.isPublic,
+      seated(state),
+      hostName(state),
+      state.tableName,
       JSON.stringify(state),
       JSON.stringify(input.events),
       toTimestamp(input.nextDueAt),
@@ -79,7 +88,7 @@ export async function loadTable(db: Db, code: string): Promise<TableRecord | nul
 
 /**
  * Optimistic compare-and-set. Writes the new state only if nobody else saved since we read
- * `expectedVersion`, and in the same statement mirrors status/host into `games` and, when given,
+ * `expectedVersion`, and in the same statement mirrors status, host, seat count and host name into `games` and, when given,
  * upserts the public roster into `game_players`. Returns false when another request won the race.
  */
 export async function saveTable(
@@ -104,10 +113,11 @@ export async function saveTable(
      ), g AS (
        UPDATE games
           SET status = $6, host_player_id = $7,
-              started_at = $8::timestamptz, finished_at = $9::timestamptz
+              started_at = $8::timestamptz, finished_at = $9::timestamptz,
+              player_count = $11, host_name = $12
         WHERE id IN (SELECT game_id FROM s)
-          AND (status, host_player_id, started_at, finished_at)
-              IS DISTINCT FROM ($6::text, $7::text, $8::timestamptz, $9::timestamptz)
+          AND (status, host_player_id, started_at, finished_at, player_count, host_name)
+              IS DISTINCT FROM ($6::text, $7::text, $8::timestamptz, $9::timestamptz, $11::int, $12::text)
        RETURNING id
      ), p AS (
        INSERT INTO game_players (game_id, player_id, user_id, display_name, seat, moves, pairs, best_streak, rank)
@@ -132,6 +142,8 @@ export async function saveTable(
       toTimestamp(state.startedAt),
       toTimestamp(state.finishedAt),
       JSON.stringify(input.roster ?? []),
+      seated(state),
+      hostName(state),
     ],
   );
   return rows.length === 1;

@@ -31,6 +31,13 @@ export const displayNameSchema = z
   .max(24, "Name is too long")
   .regex(/^[^<>]*$/, "Name contains invalid characters");
 
+export const tableNameSchema = z
+  .string()
+  .trim()
+  .min(1, "Table name is required")
+  .max(40, "Table name is too long")
+  .regex(/^[^<>]*$/, "Table name contains invalid characters");
+
 // ---------------------------------------------------------------------------
 // Requests
 // ---------------------------------------------------------------------------
@@ -43,6 +50,10 @@ export const createTableRequestSchema = z.object({
     .refine((n) => (PAIR_OPTIONS as readonly number[]).includes(n), "Unsupported board size"),
   // The fixed options are what the UI offers; 3s is allowed so timeout behaviour can be tested quickly.
   turnSeconds: z.number().int().min(3).max(120),
+  // Optional so a client that doesn't send it gets a private table.
+  isPublic: z.boolean().optional(),
+  // Optional so an older client still creates a table; the list falls back to the host's name.
+  tableName: tableNameSchema.optional(),
   name: displayNameSchema.optional(),
 });
 export type CreateTableRequest = z.infer<typeof createTableRequestSchema>;
@@ -85,6 +96,9 @@ export type TableView = {
   pairs: number;
   maxPlayers: number;
   turnSeconds: number;
+  isPublic: boolean;
+  /** Chosen by the host at creation; empty for tables created without one. */
+  tableName: string;
   status: TableStatus;
   hostId: string;
   /** The viewer's player id, or null when they are only watching. */
@@ -143,6 +157,21 @@ export type SnapshotResponse = {
 export type PollResponse = { unchanged: true; serverNow: number; youId: string | null } | SnapshotResponse;
 
 export type CreateTableResponse = { code: string };
+
+/** One row of the public directory. Deliberately carries no board, turn or player list. */
+export type PublicTableEntry = {
+  code: string;
+  /** Empty when the host didn't name the table. */
+  tableName: string;
+  theme: string;
+  pairs: number;
+  status: "lobby" | "playing";
+  seats: { taken: number; max: number };
+  hostName: string;
+  /** ISO timestamp of table creation. */
+  createdAt: string;
+};
+export type PublicTablesResponse = { tables: PublicTableEntry[] };
 
 export const ERROR_CODES = [
   "bad_request",

@@ -49,7 +49,14 @@ class Draft {
 // Creation
 // ---------------------------------------------------------------------------
 
-export type TableSettings = { theme: string; pairs: number; maxPlayers: number; turnSeconds: number };
+export type TableSettings = {
+  theme: string;
+  pairs: number;
+  maxPlayers: number;
+  turnSeconds: number;
+  isPublic: boolean;
+  tableName: string;
+};
 
 export function createTable(code: string, settings: TableSettings, host: Identity, now: number): GameState {
   return {
@@ -436,6 +443,8 @@ export function toView(s: GameState, viewerId: string | null): TableView {
     pairs: s.pairs,
     maxPlayers: s.maxPlayers,
     turnSeconds: s.turnSeconds,
+    isPublic: s.isPublic,
+    tableName: s.tableName,
     status: s.status,
     hostId: s.hostId,
     youId: viewerId !== null && s.players.some((p) => p.id === viewerId) ? viewerId : null,

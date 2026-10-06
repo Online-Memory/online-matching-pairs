@@ -17,7 +17,8 @@ import { Results } from "./Results";
 import { Scoreboard } from "./Scoreboard";
 import { Spotlight } from "./Spotlight";
 
-export function TableScreen({ code }: { code: string }) {
+/** `autoJoin`: arrived by accepting a table invite, so seat a signed-in visitor without another click. */
+export function TableScreen({ code, autoJoin = false }: { code: string; autoJoin?: boolean }) {
   const table = useTable(code);
   const me = useMe();
   const { view, actionError, clearActionError } = table;
@@ -27,6 +28,16 @@ export function TableScreen({ code }: { code: string }) {
     const id = setTimeout(clearActionError, 3500);
     return () => clearTimeout(id);
   }, [actionError, clearActionError]);
+
+  const autoJoined = useRef(false);
+  const join = table.join;
+  const canAutoJoin =
+    autoJoin && !!me?.user && view?.status === "lobby" && !view.players.some((p) => p.id === view.youId);
+  useEffect(() => {
+    if (!canAutoJoin || autoJoined.current) return;
+    autoJoined.current = true; // one attempt: if it fails, the Join button is still there
+    void join();
+  }, [canAutoJoin, join]);
 
   // Confetti when a game finishes while we are watching it, not for a table that was already over.
   const [confetti, setConfetti] = useState(false);

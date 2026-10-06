@@ -58,6 +58,10 @@ export const gameStateSchema = z.object({
   pairs: z.number().int(),
   maxPlayers: z.number().int(),
   turnSeconds: z.number().int(),
+  /** Listed in the public directory. Fixed at creation; rows saved before this existed are private. */
+  isPublic: z.boolean().default(false),
+  /** Chosen by the host at creation. Rows saved before this existed have none. */
+  tableName: z.string().default(""),
   status: z.enum(["lobby", "playing", "finished", "abandoned"]),
   hostId: z.string(),
   players: z.array(playerSchema),

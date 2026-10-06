@@ -18,7 +18,8 @@ Turn-based memory game, one Next.js app on Vercel backed by Neon Postgres. Clien
 - `src/server/engine/`: pure functions, `(state, action, now) → state + public events`. `applyAction`, `tick`,
   `toView` live in `engine.ts`; the state schema in `state.ts`.
 - `src/server/tables/service.ts`: `TableService`: load row → `tick(now)` → engine action → compare-and-set save.
-- `src/server/db/`: drivers (Neon, Postgres, PGlite), `tables.ts` (`table_state` + mirroring), `history.ts`.
+- `src/server/db/`: drivers (Neon, Postgres, PGlite), `tables.ts` (`table_state` + mirroring, incl. `is_public`/`player_count`/`host_name`), `history.ts`,
+  `public-tables.ts` (the public directory).
 - `src/app/api/tables/[code]/*`: route handlers, thin wrappers over `TableService`.
 - `src/server/friends/service.ts`: `FriendsService`: profiles (`@handle`), presence heartbeat, friendships and lobby
   invites in `profiles`, `friendships`, `table_invites`. It never reads `table_state`; seating comes from
@@ -37,7 +38,7 @@ Turn-based memory game, one Next.js app on Vercel backed by Neon Postgres. Clien
   `tick(now)`, never by timers.
 - Saves are `UPDATE … WHERE version = $expected` with retry. Mirroring into `games`/`game_players` happens in the same
   statement (data-modifying CTEs). No interactive transactions: the Neon HTTP driver can't do them.
-- History queries read `games` and `game_players`, never `table_state`.
+- History queries and the public directory (`GET /api/public-tables`) read `games` and `game_players`, never `table_state`.
 - Migrations are backward compatible (the old deployment serves until the new one is promoted) and immutable once
   committed. A hook blocks edits to existing migration files.
 
@@ -65,5 +66,5 @@ Turn-based memory game, one Next.js app on Vercel backed by Neon Postgres. Clien
 - Use the `verify` skill before saying work is done.
 - Use the `new-migration` skill for any schema change.
 - Run the `anti-cheat-reviewer` agent when a diff touches `src/server/engine/`, `src/server/tables/`,
-  `src/lib/protocol/`, `src/app/api/tables/`, `src/server/db/history.ts`, `src/components/Tile.tsx` or
+  `src/lib/protocol/`, `src/app/api/tables/`, `src/server/db/history.ts`, `src/server/db/public-tables.ts`, `src/components/Tile.tsx` or
   `src/components/Board.tsx`.

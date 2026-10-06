@@ -9,7 +9,14 @@ import { ServiceError, TableService } from "@/server/tables/service";
 
 import { createTestDb } from "./db";
 
-const settings = { theme: "001", pairs: 8, maxPlayers: 4, turnSeconds: 20 };
+const settings = {
+  theme: "001",
+  pairs: 8,
+  maxPlayers: 4,
+  turnSeconds: 20,
+  isPublic: false,
+  tableName: "Test table",
+};
 const alice: Identity = { playerId: "u_alice", userId: "alice", name: "Alice" };
 const bob: Identity = { playerId: "g_bob", userId: null, name: "Bob" };
 const carol: Identity = { playerId: "g_carol", userId: null, name: "Carol" };

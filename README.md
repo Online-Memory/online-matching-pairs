@@ -32,6 +32,10 @@ browser ── GET /api/tables/ABC234?since=41 (every ~1s while playing) ──�
   (request, then accept) and lobby invites. Presence is a `last_seen_at` heartbeat sent every 30s from the layout;
   a friend counts as online for 75s after it. `GET /api/friends` is polled every 5s and carries no table state.
   Guests and deployments without Neon Auth get a 401 and no friends UI.
+- **Public tables**: a host can list a table at creation (`isPublic`, fixed afterwards, private by default). `games`
+  mirrors `is_public`, `player_count` and `host_name` in the same save statement, and `GET /api/public-tables`
+  (no sign-in, polled every 5s by the home page) lists public lobbies and games in progress from `games` alone:
+  code, theme, size, status, seats and host name, no board. Anyone can watch; joining stays lobby-only.
 
 ## Develop
 
@@ -64,7 +68,7 @@ in-memory PGlite.
 - The engine, the DB clients and auth live under `src/server/` with `import "server-only"`. ESLint blocks importing
   them, or any DB driver, from components, client libraries, protocol types and pages.
 - Faces are shuffled with `crypto.randomInt`. The public event ring holds only public events.
-- History queries read only `games` and `game_players`, never `table_state`.
+- History queries and the public directory read only `games` and `game_players`, never `table_state`.
 - A missed pair stays face up for 5s, long enough for a 1s poll to see it. Flips are rejected during that time. The
   player whose turn it is can end the wait early (`POST …/dismiss`, sent on a left click anywhere); for anyone else it
   does nothing, and an early click only shortens the wait to 1.5s so everyone's poll sees the pair.
@@ -85,7 +89,7 @@ in-memory PGlite.
 4. `vercel.json` makes each build run `pnpm db:migrate` before `next build`, and registers a daily cleanup cron
    (`/api/cron/cleanup`). Write migrations so they stay backward compatible: the old deployment keeps serving
    until the new one is promoted.
-5. Optional: add a Vercel Firewall rate-limit rule on `/api/tables/*`. The engine rejects flips that are inhumanly
+5. Optional: add a Vercel Firewall rate-limit rule on `/api/tables/*` and `/api/public-tables`. The engine rejects flips that are inhumanly
    fast, but it can't throttle invalid requests, because a rejected request saves nothing.
 
 ## Not built yet

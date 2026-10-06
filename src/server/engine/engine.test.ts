@@ -5,6 +5,7 @@ import {
   applyAction,
   createTable,
   EngineError,
+  gameStateSchema,
   nextDueAt,
   RULES,
   seededRng,
@@ -31,6 +32,8 @@ function lobby(players = 2, opts: Partial<{ pairs: number; turnSeconds: number; 
       pairs: opts.pairs ?? 8,
       maxPlayers: opts.maxPlayers ?? 4,
       turnSeconds: opts.turnSeconds ?? 20,
+      isPublic: false,
+      tableName: "Test table",
     },
     id(1),
     T0,
@@ -397,5 +400,21 @@ describe("invariants", () => {
         },
       ),
     );
+  });
+});
+
+describe("table visibility", () => {
+  it("records visibility at creation, and old saved state without it parses as private", () => {
+    const pub = createTable(
+      "ABC234",
+      { theme: "001", pairs: 8, maxPlayers: 4, turnSeconds: 20, isPublic: true, tableName: "Pub" },
+      id(1),
+      T0,
+    );
+    expect(pub.isPublic).toBe(true);
+    expect(toView(pub, null).isPublic).toBe(true);
+
+    const { isPublic: _omit, ...legacy } = pub;
+    expect(gameStateSchema.parse(legacy).isPublic).toBe(false);
   });
 });

@@ -6,7 +6,14 @@ import { ServiceError, TableService } from "@/server/tables/service";
 
 import { createTestDb } from "./db";
 
-const settings = { theme: "001", pairs: 8, maxPlayers: 4, turnSeconds: 20 };
+const settings = {
+  theme: "001",
+  pairs: 8,
+  maxPlayers: 4,
+  turnSeconds: 20,
+  isPublic: false,
+  tableName: "Test table",
+};
 const alice: Account = { id: "alice", name: "Alice" };
 const bob: Account = { id: "bob", name: "Bob" };
 const carol: Account = { id: "carol", name: "Carol" };

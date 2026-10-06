@@ -5,6 +5,7 @@ import { FriendRequestBanner } from "@/components/FriendRequestBanner";
 import { PresenceBeat } from "@/components/PresenceBeat";
 import { SiteHeader } from "@/components/SiteHeader";
 import { ThemeProvider } from "@/components/ThemeProvider";
+import { Toaster } from "@/components/Toaster";
 
 import "./globals.css";
 
@@ -36,6 +37,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <SiteHeader />
           <PresenceBeat />
           <FriendRequestBanner />
+          <Toaster />
           {children}
         </ThemeProvider>
       </body>

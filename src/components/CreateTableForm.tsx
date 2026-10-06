@@ -23,9 +23,11 @@ export function CreateTableForm() {
   const router = useRouter();
   const me = useMe();
   const [name, setName] = useState("");
+  const [tableName, setTableName] = useState("");
   const [theme, setTheme] = useState<ThemeId>("001");
   const [pairs, setPairs] = useState(12);
   const [turnSeconds, setTurnSeconds] = useState(20);
+  const [isPublic, setIsPublic] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
@@ -47,6 +49,8 @@ export function CreateTableForm() {
         theme,
         pairs: Math.min(pairs, maxPairs),
         turnSeconds,
+        isPublic,
+        tableName: tableName.trim() || undefined,
         name: needsName ? name.trim() : undefined,
       });
       router.push(`/table/${code}`);
@@ -103,6 +107,36 @@ export function CreateTableForm() {
             ))}
           </select>
         </div>
+      </div>
+
+      <div className="field">
+        <label htmlFor="table-name">Table name (optional)</label>
+        <input
+          id="table-name"
+          value={tableName}
+          onChange={(e) => setTableName(e.target.value)}
+          maxLength={40}
+          placeholder="Friday night showdown"
+          autoComplete="off"
+        />
+      </div>
+
+      <div className="check-field" data-checked={isPublic}>
+        <label className="check-field-label">
+          <input
+            type="checkbox"
+            className="switch"
+            checked={isPublic}
+            aria-describedby="public-hint"
+            onChange={(e) => setIsPublic(e.target.checked)}
+          />
+          <span className="check-field-title">Public table</span>
+        </label>
+        <p id="public-hint" className="check-field-hint">
+          {isPublic
+            ? "Listed on the home page. Anyone can watch, and join while it's a lobby."
+            : "Private. Only people with the code or an invite can join."}
+        </p>
       </div>
 
       {needsName && <NameField id="create-name" value={name} onChange={setName} />}

@@ -7,6 +7,7 @@ import type {
   HistoryEntry,
   MeResponse,
   PollResponse,
+  PublicTablesResponse,
   SnapshotResponse,
 } from "@/lib/protocol";
 
@@ -58,6 +59,7 @@ export const api = {
     post<SnapshotResponse>(table(code, "flip", since), { tileId }),
   dismiss: (code: string, since: number) => post<SnapshotResponse>(table(code, "dismiss", since)),
   leave: (code: string, since: number) => post<SnapshotResponse>(table(code, "leave", since)),
+  publicTables: () => request<PublicTablesResponse>("/api/public-tables"),
   me: () => request<MeResponse>("/api/me"),
   history: () => request<HistoryEntry[]>("/api/me/history"),
   friends: () => request<FriendsResponse>("/api/friends"),

@@ -40,7 +40,10 @@ describe("HomeInvites", () => {
     vi.spyOn(api, "friends").mockResolvedValue(withInvite);
     const dismiss = vi.spyOn(api, "dismissInvite").mockResolvedValue({ ok: true });
     render(<HomeInvites />);
-    expect(await screen.findByRole("link", { name: /Join ABC234/ })).toHaveAttribute("href", "/table/ABC234");
+    expect(await screen.findByRole("link", { name: /Join ABC234/ })).toHaveAttribute(
+      "href",
+      "/table/ABC234?join=1",
+    );
     expect(screen.queryByText(/Dave/)).toBeNull();
     expect(screen.queryByLabelText(/friend's handle/i)).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Dismiss" }));

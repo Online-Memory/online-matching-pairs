@@ -8,9 +8,11 @@ import {
   type ErrorCode,
   type PollResponse,
   type PublicEvent,
+  type PublicTableEntry,
   type SnapshotResponse,
 } from "@/lib/protocol";
 import { isUniqueViolation, type Db } from "@/server/db";
+import { listPublicTables } from "@/server/db/public-tables";
 import { insertTable, loadTable, saveTable, type RosterEntry, type TableRecord } from "@/server/db/tables";
 import {
   applyAction,
@@ -19,6 +21,7 @@ import {
   cryptoRng,
   EngineError,
   nextDueAt,
+  RULES,
   tick,
   toView,
   type Action,
@@ -33,6 +36,9 @@ import {
 export const EVENT_RING_SIZE = 30;
 const MAX_CAS_ATTEMPTS = 5;
 const MAX_CODE_ATTEMPTS = 8;
+const PUBLIC_LIST_LIMIT = 50;
+/** A started game nobody finished within this long is probably dead; keep it out of the directory. */
+const PUBLIC_PLAYING_WINDOW_MS = 2 * 3_600_000;
 
 export class ServiceError extends Error {
   constructor(
@@ -70,6 +76,16 @@ export class TableService {
       }
     }
     throw new ServiceError("internal", "Could not allocate a table code");
+  }
+
+  /** The homepage directory: public lobbies and games in progress. Reads `games`, never a board. */
+  async listPublic(): Promise<PublicTableEntry[]> {
+    const now = this.clock();
+    return listPublicTables(this.db, {
+      lobbySince: now - RULES.lobbyIdleMs,
+      playingSince: now - PUBLIC_PLAYING_WINDOW_MS,
+      limit: PUBLIC_LIST_LIMIT,
+    });
   }
 
   /** Whether `userId` holds a seat (has not left) at a table that is still a lobby. Answers a boolean, never state. */

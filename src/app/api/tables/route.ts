@@ -20,6 +20,8 @@ export const POST = route(async (request) => {
     pairs: body.pairs,
     maxPlayers: maxPlayersFor(viewer.userId !== null),
     turnSeconds: body.turnSeconds,
+    isPublic: body.isPublic ?? false,
+    tableName: body.tableName ?? "",
   });
   return NextResponse.json<CreateTableResponse>({ code }, { status: 201 });
 });

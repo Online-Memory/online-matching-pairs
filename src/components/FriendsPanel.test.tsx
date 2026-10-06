@@ -56,7 +56,7 @@ describe("FriendsPanel", () => {
     expect(items.map((li) => li.getAttribute("aria-label"))).toEqual(["Bob", "Carol"]);
     expect(screen.getByRole("listitem", { name: "Carol" })).toHaveTextContent(/last seen/i);
     expect(screen.getByRole("button", { name: "Accept Dave (@dave)" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Join ABC234/ })).toHaveAttribute("href", "/table/ABC234");
+    expect(screen.getByRole("link", { name: /Join ABC234/ })).toHaveAttribute("href", "/table/ABC234?join=1");
     const invites = screen.getByRole("list", { name: "Table invites" });
     expect(invites).toHaveTextContent("Bob");
     expect(invites).toHaveTextContent("@bob");
