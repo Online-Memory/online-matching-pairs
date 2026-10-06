@@ -24,6 +24,10 @@ export const RULES = {
   minActionGapMs: 40,
   /** Upper bound on deadlines processed in one tick, so a corrupt state can't spin forever. */
   maxTickIterations: 1_000,
+  /** A pause ends by itself after this long. */
+  pauseMs: 60_000,
+  /** Pauses each player may start per game. */
+  pausesPerPlayer: 5,
 } as const;
 
 const playerSchema = z.object({
@@ -38,6 +42,7 @@ const playerSchema = z.object({
   bestStreak: z.number().int(),
   timeouts: z.number().int(),
   lastActionAt: z.number(),
+  pausesUsed: z.number().int().default(0),
 });
 export type PlayerState = z.infer<typeof playerSchema>;
 
@@ -72,6 +77,8 @@ export const gameStateSchema = z.object({
   lockUntil: z.number().nullable(),
   /** When the current flip-back lock began. Dismissals measure the minimum reveal from here, not from lockUntil, which they move. */
   lockStartedAt: z.number().nullable().default(null),
+  /** Set while paused. All other deadlines are frozen and shifted forward when it ends. */
+  pause: z.object({ by: z.string(), startedAt: z.number(), until: z.number() }).nullable().default(null),
   lobbyExpiresAt: z.number().nullable(),
   abandonAt: z.number().nullable(),
   seq: z.number().int(),

@@ -104,10 +104,10 @@ test("a reloaded or briefly offline player picks up where they left off", async 
   await expect(ann.page.getByTestId("status-line")).toHaveText(/Your turn/);
 
   await ben.context.setOffline(true);
-  await expect(ben.page.getByText("Reconnecting…")).toBeVisible({ timeout: 8_000 });
+  await expect(ben.page.getByText("Connection lost. Retrying…")).toBeVisible({ timeout: 8_000 });
   await tile(ann.page, 1).click();
   await ben.context.setOffline(false);
-  await expect(ben.page.getByText("Reconnecting…")).toBeHidden({ timeout: 15_000 });
+  await expect(ben.page.getByText("Connection lost. Retrying…")).toBeHidden({ timeout: 15_000 });
   await expect(tile(ben.page, 1)).not.toHaveAttribute("data-state", "hidden");
 });
 
@@ -128,7 +128,7 @@ test("when the host leaves, the next seat becomes host", async ({ newPlayer }) =
   await expect(cy.page.getByTestId("status-line")).toHaveText("Ben's turn");
 
   // Mid-game: host leaves, Cy takes over hosting and the turn.
-  await ben.page.getByRole("button", { name: "Leave game" }).click();
+  await ben.page.getByRole("button", { name: "Leave" }).click();
   await expect(cy.page.getByTestId("seat-Cy")).toContainText("Host");
   await expect(cy.page.getByTestId("status-line")).toHaveText(/Your turn/);
   await expect(cy.page.getByTestId("seat-Ben")).toContainText("Left");

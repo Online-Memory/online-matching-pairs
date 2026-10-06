@@ -13,6 +13,7 @@ import { CELEBRATION_MS, Confetti } from "./Confetti";
 import { FinishBanner } from "./FinishBanner";
 import { FlipBackBar } from "./FlipBackBar";
 import { Lobby } from "./Lobby";
+import { PauseBar } from "./PauseBar";
 import { Results } from "./Results";
 import { Scoreboard } from "./Scoreboard";
 import { Spotlight } from "./Spotlight";
@@ -71,7 +72,10 @@ export function TableScreen({ code, autoJoin = false }: { code: string; autoJoin
 
   // After a miss the player whose turn it is can click anywhere to turn the pair face down early.
   const canDismiss =
-    view?.status === "playing" && view.lockUntil !== null && view.turn?.playerId === view.youId;
+    view?.status === "playing" &&
+    !view.pause &&
+    view.lockUntil !== null &&
+    view.turn?.playerId === view.youId;
   const dismissRef = useRef(table.dismiss);
   useEffect(() => {
     dismissRef.current = table.dismiss;
@@ -126,7 +130,8 @@ export function TableScreen({ code, autoJoin = false }: { code: string; autoJoin
   }
 
   const you = view.players.find((p) => p.id === view.youId);
-  const myTurn = view.status === "playing" && view.turn?.playerId === view.youId && view.lockUntil === null;
+  const myTurn =
+    view.status === "playing" && !view.pause && view.turn?.playerId === view.youId && view.lockUntil === null;
   const revealedCount = view.tiles.filter((t) => t.state === "revealed").length;
   const canFlip = myTurn && revealedCount < 2 && !table.pending;
 
@@ -136,7 +141,16 @@ export function TableScreen({ code, autoJoin = false }: { code: string; autoJoin
       <h1 className="table-title">
         Table <span data-testid="table-code-bar">{view.code}</span>
       </h1>
-      {table.reconnecting && <span className="pill">Reconnecting…</span>}
+      {view.canPause && (
+        <button
+          type="button"
+          className="button-quiet"
+          onClick={() => void table.pause()}
+          disabled={table.pending}
+        >
+          Pause
+        </button>
+      )}
       {view.status === "playing" && you && you.status !== "left" && (
         <button
           type="button"
@@ -144,7 +158,7 @@ export function TableScreen({ code, autoJoin = false }: { code: string; autoJoin
           onClick={() => void table.leave()}
           disabled={table.pending}
         >
-          Leave game
+          Leave
         </button>
       )}
     </header>
@@ -171,7 +185,15 @@ export function TableScreen({ code, autoJoin = false }: { code: string; autoJoin
             <p className="status-line" role="status" data-testid="status-line">
               {statusText(view, myTurn)}
             </p>
-            {view.status === "playing" && view.lockUntil !== null && (
+            {view.pause && (
+              <PauseBar
+                view={view}
+                serverOffset={table.serverOffset}
+                pending={table.pending}
+                onResume={() => void table.resume()}
+              />
+            )}
+            {view.status === "playing" && view.lockUntil !== null && !view.pause && (
               <FlipBackBar
                 key={view.lockUntil}
                 lockUntil={view.lockUntil}
@@ -243,6 +265,7 @@ function statusText(view: TableView, myTurn: boolean) {
   if (view.status === "finished") return "Game over";
   if (view.status === "abandoned") return "Game abandoned";
   if (!view.youId && view.status === "playing") return "You're watching this game";
+  if (view.pause) return "Game paused";
   if (view.lockUntil !== null) {
     return view.turn?.playerId === view.youId ? "No match. Flipping back…" : "No match. Flipping back…";
   }
@@ -266,6 +289,10 @@ function describe(event: PublicEvent | undefined, view: TableView): string {
       return `${nameOf(view, event.playerId)} is back`;
     case "player_left":
       return `${nameOf(view, event.playerId)} left the game`;
+    case "paused":
+      return `${nameOf(view, event.playerId)} paused the game`;
+    case "resumed":
+      return "Game resumed";
     case "host_changed":
       return `${nameOf(view, event.playerId)} is now the host`;
     default:

@@ -109,6 +109,10 @@ export type TableView = {
   turn: { playerId: string; deadline: number } | null;
   /** Mismatched tiles stay face up until this server time (or until the player dismisses them). */
   lockUntil: number | null;
+  /** Set while the game is paused. `until` is when it resumes by itself; times are server epoch ms. */
+  pause: { by: string; startedAt: number; until: number } | null;
+  /** Whether the viewer can start a pause right now (seated, active, game running, budget left). */
+  canPause: boolean;
   seq: number;
 };
 
@@ -133,6 +137,8 @@ export type PublicEvent = EventBase &
     | { type: "player_returned"; playerId: string }
     | { type: "host_changed"; playerId: string }
     | { type: "game_over"; scores: { playerId: string; pairs: number; rank: number }[] }
+    | { type: "paused"; playerId: string; until: number }
+    | { type: "resumed" }
     | { type: "abandoned" }
   );
 
@@ -186,6 +192,9 @@ export const ERROR_CODES = [
   "tile_not_hidden",
   "too_many_revealed",
   "locked",
+  "paused",
+  "pause_unavailable",
+  "not_pauser",
   "not_playing",
   "rate_limited",
   "conflict",

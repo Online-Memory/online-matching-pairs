@@ -81,6 +81,28 @@ describe("TableService", () => {
     expect(next.view.players.map((p) => p.name)).toEqual(["Alice", "Bob"]);
   });
 
+  it("pauses, rejects flips, and resumes by itself on the next poll after the minute", async () => {
+    const code = await startedTable();
+    const before = (await service.poll(code, bob.playerId, -1)) as SnapshotResponse;
+    const deadline = before.view.turn!.deadline;
+
+    now += 2_000;
+    const paused = await service.act(code, bob, { type: "pause" }, before.view.seq);
+    expect(paused.view.pause).toMatchObject({ by: "g_bob" });
+    await expect(service.act(code, alice, { type: "flip", tileId: 0 }, -1)).rejects.toMatchObject({
+      code: "paused",
+    });
+    await expect(service.act(code, alice, { type: "resume" }, -1)).rejects.toMatchObject({
+      code: "not_pauser",
+    });
+
+    now += 61_000;
+    const after = (await service.poll(code, alice.playerId, paused.view.seq)) as SnapshotResponse;
+    expect(after.view.pause).toBeNull();
+    expect(after.view.turn!.deadline).toBe(deadline + 60_000);
+    expect(after.events.map((e) => e.type)).toEqual(["resumed"]);
+  });
+
   it("returns snapshot only when the client is further behind than the event ring", async () => {
     const code = await startedTable();
     await playPerfectGame(code, alice);

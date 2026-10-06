@@ -418,3 +418,140 @@ describe("table visibility", () => {
     expect(gameStateSchema.parse(legacy).isPublic).toBe(false);
   });
 });
+
+describe("pause", () => {
+  const MIN = RULES.pauseMs;
+
+  it("can only be started by an active player in a running game, five times each", () => {
+    expectError(() => act(lobby(2), "p1", { type: "pause" }, T0), "not_playing");
+    const s = started(2);
+    const paused = act(s, "p2", { type: "pause" }, T0 + 1_000);
+    expect(paused.pause).toEqual({ by: "p2", startedAt: T0 + 1_000, until: T0 + 1_000 + MIN });
+    expectError(() => act(paused, "p1", { type: "pause" }, T0 + 2_000), "paused");
+  });
+
+  it("gives each player five pauses, then refuses a sixth", () => {
+    let s = started(2);
+    let t = T0;
+    for (let n = 1; n <= RULES.pausesPerPlayer; n++) {
+      t += 1_000;
+      s = act(s, "p2", { type: "pause" }, t);
+      t += 1_000;
+      s = act(s, "p2", { type: "resume" }, t);
+    }
+    expect(s.players.find((p) => p.id === "p2")!.pausesUsed).toBe(5);
+    expectError(() => act(s, "p2", { type: "pause" }, t + 1_000), "pause_unavailable");
+    // p1's budget is separate
+    expect(act(s, "p1", { type: "pause" }, t + 1_000).pause?.by).toBe("p1");
+  });
+
+  it("lets only the player who paused resume early", () => {
+    const paused = act(started(2), "p2", { type: "pause" }, T0 + 1_000);
+    expectError(() => act(paused, "p1", { type: "resume" }, T0 + 2_000), "not_pauser");
+    expect(act(paused, "p2", { type: "resume" }, T0 + 2_000).pause).toBeNull();
+  });
+
+  it("blocks flips, ignores dismiss, and schedules only its own end", () => {
+    const s = act(started(2), "p1", { type: "pause" }, T0 + 1_000);
+    expectError(() => act(s, "p1", { type: "flip", tileId: 0 }, T0 + 2_000), "paused");
+    expect(act(s, "p1", { type: "dismiss" }, T0 + 2_000)).toEqual(s);
+    expect(nextDueAt(s)).toBe(T0 + 1_000 + MIN);
+  });
+
+  it("shifts the turn deadline by the paused time when it auto-resumes", () => {
+    const s = started(2, { turnSeconds: 20 });
+    const deadline = s.turn!.deadline; // T0 + 20_000
+    const paused = act(s, "p2", { type: "pause" }, T0 + 5_000);
+    const { state, events } = tick(paused, T0 + 5_000 + MIN + 10);
+    expect(state.pause).toBeNull();
+    expect(state.turn!.deadline).toBe(deadline + MIN);
+    expect(state.turn!.playerId).toBe("p1");
+    expect(events.map((e) => e.type)).toEqual(["resumed"]);
+  });
+
+  it("shifts by the shorter elapsed time on an early resume", () => {
+    const s = started(2, { turnSeconds: 20 });
+    const paused = act(s, "p1", { type: "pause" }, T0 + 5_000);
+    const resumed = act(paused, "p1", { type: "resume" }, T0 + 15_000);
+    expect(resumed.pause).toBeNull();
+    expect(resumed.turn!.deadline).toBe(s.turn!.deadline + 10_000);
+  });
+
+  it("never moves deadlines backwards when a resume's clock reads earlier than the pause's", () => {
+    const s = started(2, { turnSeconds: 20 });
+    const paused = act(s, "p1", { type: "pause" }, T0 + 5_000);
+    const resumed = act(paused, "p1", { type: "resume" }, T0 + 4_990); // clock skew between instances
+    expect(resumed.pause).toBeNull();
+    expect(resumed.turn!.deadline).toBe(s.turn!.deadline);
+  });
+
+  it("gives a face-up mismatch its remaining lock time back", () => {
+    let s = started(2);
+    const [a, b] = mismatch(s);
+    s = act(s, "p1", { type: "flip", tileId: a }, T0 + 100);
+    s = act(s, "p1", { type: "flip", tileId: b }, T0 + 200);
+    const lockUntil = s.lockUntil!;
+    s = act(s, "p2", { type: "pause" }, T0 + 1_000);
+    s = tick(s, T0 + 1_000 + MIN + 1).state;
+    expect(s.lockUntil).toBe(lockUntil + MIN);
+    expect(s.revealed).toHaveLength(2); // still face up, not yet flipped back
+    expect(s.pause).toBeNull();
+  });
+
+  it("is a harmless no-op to resume when nothing is paused", () => {
+    const s = started(2);
+    expect(act(s, "p1", { type: "resume" }, T0 + 1_000)).toEqual(s);
+  });
+
+  it("ends when the player who paused leaves", () => {
+    const s = act(started(3), "p3", { type: "pause" }, T0 + 1_000);
+    const after = act(s, "p3", { type: "leave" }, T0 + 2_000);
+    expect(after.pause).toBeNull();
+    expect(after.status).toBe("playing");
+  });
+
+  it("gives the next player a full turn when someone leaves on their turn mid-pause", () => {
+    const s = act(started(3, { turnSeconds: 20 }), "p3", { type: "pause" }, T0 + 1_000);
+    const left = act(s, "p1", { type: "leave" }, T0 + 2_000); // p1 held the turn
+    expect(left.turn!.playerId).toBe("p2");
+    const resumed = act(left, "p3", { type: "resume" }, T0 + 11_000);
+    expect(resumed.turn!.deadline).toBe(T0 + 11_000 + 20_000);
+  });
+
+  it("clears the pause when the game is abandoned", () => {
+    const s = act(started(2), "p1", { type: "pause" }, T0 + 1_000);
+    const a = act(s, "p1", { type: "leave" }, T0 + 2_000);
+    const b = act(a, "p2", { type: "leave" }, T0 + 3_000);
+    expect(b.status).toBe("abandoned");
+    expect(b.pause).toBeNull();
+  });
+
+  it("is visible in the view, with canPause only for someone who can still pause", () => {
+    const s = started(2);
+    expect(toView(s, "p1")).toMatchObject({ pause: null, canPause: true });
+    expect(toView(s, null).canPause).toBe(false);
+    const paused = act(s, "p1", { type: "pause" }, T0 + 1_000);
+    expect(toView(paused, "p2")).toMatchObject({
+      pause: { by: "p1", startedAt: T0 + 1_000, until: T0 + 1_000 + MIN },
+      canPause: false,
+    });
+    const resumed = act(paused, "p1", { type: "resume" }, T0 + 2_000);
+    expect(toView(resumed, "p1").canPause).toBe(true); // 4 of 5 pauses left
+    expect(toView(resumed, "p2").canPause).toBe(true);
+    let spent = started(2);
+    for (let n = 0; n < RULES.pausesPerPlayer; n++) {
+      spent = act(spent, "p1", { type: "pause" }, T0 + 1_000 * (2 * n + 1));
+      spent = act(spent, "p1", { type: "resume" }, T0 + 1_000 * (2 * n + 2));
+    }
+    expect(toView(spent, "p1").canPause).toBe(false); // budget spent
+    expect(toView(spent, "p2").canPause).toBe(true);
+  });
+
+  it("parses state saved before pausing existed", () => {
+    const { pause: _pause, ...old } = started(2);
+    const legacy = { ...old, players: old.players.map(({ pausesUsed: _p, ...p }) => p) };
+    const parsed = gameStateSchema.parse(legacy);
+    expect(parsed.pause).toBeNull();
+    expect(parsed.players.every((p) => p.pausesUsed === 0)).toBe(true);
+  });
+});

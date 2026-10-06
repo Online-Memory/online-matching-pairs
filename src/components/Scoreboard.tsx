@@ -39,6 +39,7 @@ export function Scoreboard({ view, serverOffset }: Props) {
                 deadline={view.turn.deadline}
                 totalSeconds={view.turnSeconds}
                 serverOffset={serverOffset}
+                frozenAt={view.pause?.startedAt}
               />
             )}
           </li>

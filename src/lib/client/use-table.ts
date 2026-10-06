@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { PollResponse, PublicEvent, SnapshotResponse, TableView } from "@/lib/protocol";
 
 import { api, ApiError } from "./api";
+import { useOffline } from "./use-connection";
 
 /**
  * How long to wait before the next poll. Turn-based play only needs opponents' moves within about a
@@ -36,6 +37,10 @@ export type TableHandle = {
   flip: (tileId: number) => Promise<void>;
   /** Turns a missed pair face down now instead of waiting for the lock to expire. */
   dismiss: () => Promise<void>;
+  /** Pauses the game for up to a minute (up to 5 times per player). */
+  pause: () => Promise<void>;
+  /** Ends a pause early; only the player who paused can. */
+  resume: () => Promise<void>;
   leave: () => Promise<void>;
   clearActionError: () => void;
 };
@@ -51,7 +56,10 @@ export function useTable(code: string): TableHandle {
   const [events, setEvents] = useState<PublicEvent[]>([]);
   const [loadError, setLoadError] = useState<ApiError | null>(null);
   const [actionError, setActionError] = useState<ApiError | null>(null);
-  const [reconnecting, setReconnecting] = useState(false);
+  const [failing, setFailing] = useState(false);
+  // Network, 429 and 502-504 failures are retried inside `api` behind a shared gate that holds back
+  // every other request too; this hook only sees the failures that retrying won't fix.
+  const reconnecting = useOffline() || failing;
   const [pending, setPending] = useState(false);
 
   const since = useRef(-1);
@@ -94,7 +102,7 @@ export function useTable(code: string): TableHandle {
     try {
       const stale = apply(await api.poll(code, since.current));
       failures.current = 0;
-      setReconnecting(false);
+      setFailing(false);
       setLoadError(null);
       schedule(stale ? 0 : pollDelay(viewRef.current, document.hidden, POLL_OVERRIDE));
     } catch (error) {
@@ -104,7 +112,7 @@ export function useTable(code: string): TableHandle {
         return; // nothing to poll
       }
       failures.current += 1;
-      setReconnecting(true);
+      setFailing(true);
       if (!viewRef.current) setLoadError(apiError);
       schedule(Math.min(MAX_BACKOFF_MS, 1_000 * 2 ** failures.current));
     } finally {
@@ -163,6 +171,8 @@ export function useTable(code: string): TableHandle {
     start: () => run((s) => api.start(code, s)),
     flip: (tileId) => run((s) => api.flip(code, s, tileId)),
     dismiss: () => run((s) => api.dismiss(code, s)),
+    pause: () => run((s) => api.pause(code, s)),
+    resume: () => run((s) => api.resume(code, s)),
     leave: () => run((s) => api.leave(code, s)),
     clearActionError: () => setActionError(null),
   };

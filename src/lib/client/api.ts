@@ -1,7 +1,6 @@
 import type {
   CreateTableRequest,
   CreateTableResponse,
-  ErrorCode,
   ErrorResponse,
   FriendsResponse,
   HistoryEntry,
@@ -14,18 +13,25 @@ import type {
   StatsResponse,
 } from "@/lib/protocol";
 
-export class ApiError extends Error {
-  constructor(
-    readonly code: ErrorCode | "network",
-    message: string,
-    readonly status: number,
-  ) {
-    super(message);
-    this.name = "ApiError";
-  }
+import { ApiError } from "./api-error";
+import { guarded } from "./connection";
+
+export { ApiError };
+
+/** Seconds or an HTTP date, as a delay in milliseconds. */
+function retryAfterMs(response: Response): number | undefined {
+  const header = response.headers.get("retry-after");
+  if (!header) return undefined;
+  const seconds = Number(header);
+  const ms = Number.isNaN(seconds) ? Date.parse(header) - Date.now() : seconds * 1_000;
+  return Number.isNaN(ms) ? undefined : Math.max(0, ms);
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+/** GETs are reads: retried and held behind the connection gate. Everything else is a one-shot action. */
+const request = <T>(path: string, init?: RequestInit) =>
+  guarded<T>(init?.method && init.method !== "GET" ? "action" : "read", () => fetchOnce<T>(path, init));
+
+async function fetchOnce<T>(path: string, init?: RequestInit): Promise<T> {
   let response: Response;
   try {
     response = await fetch(path, {
@@ -39,7 +45,12 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const body = (await response.json().catch(() => null)) as T | ErrorResponse | null;
   if (!response.ok || body === null) {
     const error = (body as ErrorResponse | null)?.error;
-    throw new ApiError(error?.code ?? "internal", error?.message ?? "Something went wrong", response.status);
+    throw new ApiError(
+      error?.code ?? "internal",
+      error?.message ?? "Something went wrong",
+      response.status,
+      retryAfterMs(response),
+    );
   }
   return body as T;
 }
@@ -61,6 +72,8 @@ export const api = {
   flip: (code: string, since: number, tileId: number) =>
     post<SnapshotResponse>(table(code, "flip", since), { tileId }),
   dismiss: (code: string, since: number) => post<SnapshotResponse>(table(code, "dismiss", since)),
+  pause: (code: string, since: number) => post<SnapshotResponse>(table(code, "pause", since)),
+  resume: (code: string, since: number) => post<SnapshotResponse>(table(code, "resume", since)),
   leave: (code: string, since: number) => post<SnapshotResponse>(table(code, "leave", since)),
   publicTables: () => request<PublicTablesResponse>("/api/public-tables"),
   me: () => request<MeResponse>("/api/me"),

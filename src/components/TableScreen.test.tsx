@@ -46,6 +46,8 @@ function mockTable(view: TableView) {
     start: vi.fn(),
     flip: vi.fn(),
     dismiss: vi.fn(),
+    pause: vi.fn(),
+    resume: vi.fn(),
     leave: vi.fn(),
     clearActionError: vi.fn(),
   } as unknown as tableModule.TableHandle);
@@ -88,5 +90,32 @@ describe("TableScreen auto-join", () => {
     mockTable(lobby);
     render(<TableScreen code="ABC234" autoJoin />);
     expect(join).not.toHaveBeenCalled();
+  });
+});
+
+describe("TableScreen pause", () => {
+  const playing = {
+    ...lobby,
+    status: "playing",
+    youId: "h",
+    turn: { playerId: "h", deadline: 100_000 },
+    pause: null,
+    canPause: false,
+  } as unknown as TableView;
+
+  it("offers a Pause button only when the viewer can pause", () => {
+    mockTable({ ...playing, canPause: true } as TableView);
+    const { getByRole, queryByRole, rerender } = render(<TableScreen code="ABC234" />);
+    expect(getByRole("button", { name: "Pause" })).toBeTruthy();
+    mockTable(playing);
+    rerender(<TableScreen code="ABC234" />);
+    expect(queryByRole("button", { name: "Pause" })).toBeNull();
+  });
+
+  it("shows the pause bar and a paused status while paused", () => {
+    mockTable({ ...playing, pause: { by: "h", startedAt: 1_000, until: 61_000 } } as TableView);
+    const { getByTestId } = render(<TableScreen code="ABC234" />);
+    expect(getByTestId("pause-bar")).toBeTruthy();
+    expect(getByTestId("status-line").textContent).toBe("Game paused");
   });
 });

@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Atkinson_Hyperlegible, Bricolage_Grotesque } from "next/font/google";
 
+import { ConnectionBanner } from "@/components/ConnectionBanner";
 import { CookieNotice } from "@/components/CookieNotice";
 import { FriendRequestBanner } from "@/components/FriendRequestBanner";
 import { PresenceBeat } from "@/components/PresenceBeat";
@@ -36,6 +37,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         <ThemeProvider>
           <SiteHeader />
+          <ConnectionBanner />
           <PresenceBeat />
           <FriendRequestBanner />
           <Toaster />

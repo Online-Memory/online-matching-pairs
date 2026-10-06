@@ -19,6 +19,8 @@ export type Action =
   | { type: "start" }
   | { type: "flip"; tileId: number }
   | { type: "dismiss" }
+  | { type: "pause" }
+  | { type: "resume" }
   | { type: "leave" };
 
 export type EngineResult = { state: GameState; events: PublicEvent[] };
@@ -70,6 +72,7 @@ export function createTable(code: string, settings: TableSettings, host: Identit
     turn: null,
     lockUntil: null,
     lockStartedAt: null,
+    pause: null,
     lobbyExpiresAt: now + RULES.lobbyIdleMs,
     abandonAt: null,
     seq: 0,
@@ -91,6 +94,7 @@ function newPlayer(identity: Identity, seat: number, now: number): PlayerState {
     streak: 0,
     bestStreak: 0,
     timeouts: 0,
+    pausesUsed: 0,
     // Start in the past so the very first action is never rate limited.
     lastActionAt: now - RULES.minActionGapMs,
   };
@@ -134,6 +138,12 @@ export function applyAction(
       break;
     case "dismiss":
       dismiss(draft, actorId, now);
+      break;
+    case "pause":
+      pause(draft, actorId, now);
+      break;
+    case "resume":
+      resume(draft, actorId, now);
       break;
     case "leave":
       leave(draft, actorId, now);
@@ -189,6 +199,7 @@ function start(draft: Draft, actorId: string, now: number, rng: Rng) {
 function flip(draft: Draft, actorId: string, tileId: number, now: number) {
   const s = draft.state;
   if (s.status !== "playing") throw new EngineError("not_playing", "The game is not in progress");
+  if (s.pause) throw new EngineError("paused", "The game is paused");
   const player = requirePlayer(s, actorId);
   if (s.turn?.playerId !== actorId) throw new EngineError("not_your_turn", "It is not your turn");
   if (s.lockUntil !== null) throw new EngineError("locked", "Wait for the tiles to flip back");
@@ -242,7 +253,7 @@ function flip(draft: Draft, actorId: string, tileId: number, now: number) {
 function dismiss(draft: Draft, actorId: string, now: number) {
   const s = draft.state;
   requirePlayer(s, actorId);
-  if (s.status !== "playing" || s.lockUntil === null || s.turn?.playerId !== actorId) return;
+  if (s.status !== "playing" || s.pause || s.lockUntil === null || s.turn?.playerId !== actorId) return;
   const earliest = (s.lockStartedAt ?? s.lockUntil - RULES.mismatchLockMs) + RULES.minRevealMs;
   if (now < earliest) {
     // Too soon to hide it, but honour the click: shorten the lock to the minimum reveal time.
@@ -266,6 +277,7 @@ function leave(draft: Draft, actorId: string, now: number) {
     return;
   }
   if (s.status !== "playing" || player.status === "left") return;
+  if (s.pause?.by === actorId) endPause(draft, now);
 
   player.status = "left";
   draft.emit({ type: "player_left", playerId: actorId }, now);
@@ -280,6 +292,45 @@ function leave(draft: Draft, actorId: string, now: number) {
   // During a flip-back lock the lock expiry hides the tiles and advances past the leaver.
 }
 
+function pause(draft: Draft, actorId: string, now: number) {
+  const s = draft.state;
+  if (s.status !== "playing") throw new EngineError("not_playing", "The game is not in progress");
+  const player = requirePlayer(s, actorId);
+  if (s.pause) throw new EngineError("paused", "The game is already paused");
+  if (player.status !== "active") throw new EngineError("pause_unavailable", "Rejoin the game to pause it");
+  if (player.pausesUsed >= RULES.pausesPerPlayer) {
+    throw new EngineError("pause_unavailable", "You have used all your pauses");
+  }
+  player.pausesUsed += 1;
+  s.pause = { by: actorId, startedAt: now, until: now + RULES.pauseMs };
+  draft.emit({ type: "paused", playerId: actorId, until: s.pause.until }, now);
+}
+
+/** Only the player who paused can end it early. With nothing paused (e.g. racing the auto-resume) it does nothing. */
+function resume(draft: Draft, actorId: string, now: number) {
+  const s = draft.state;
+  requirePlayer(s, actorId);
+  if (!s.pause) return;
+  if (s.pause.by !== actorId) throw new EngineError("not_pauser", "Only the player who paused can resume");
+  endPause(draft, now);
+}
+
+/**
+ * Ends the pause at `at` and hands the paused time back: every running deadline moves forward by how
+ * long the game stood still.
+ */
+function endPause(draft: Draft, at: number) {
+  const s = draft.state;
+  if (!s.pause) return;
+  const elapsed = Math.max(0, at - s.pause.startedAt); // clock skew must not pull deadlines back
+  if (s.turn) s.turn.deadline += elapsed;
+  if (s.lockUntil !== null) s.lockUntil += elapsed;
+  if (s.lockStartedAt !== null) s.lockStartedAt += elapsed;
+  if (s.abandonAt !== null) s.abandonAt += elapsed;
+  s.pause = null;
+  draft.emit({ type: "resumed" }, at);
+}
+
 function requirePlayer(s: GameState, playerId: string): PlayerState {
   const player = s.players.find((p) => p.id === playerId);
   if (!player) throw new EngineError("not_a_player", "You are not seated at this table");
@@ -291,7 +342,8 @@ function requirePlayer(s: GameState, playerId: string): PlayerState {
 // ---------------------------------------------------------------------------
 
 function beginTurn(draft: Draft, playerId: string, at: number) {
-  const deadline = at + draft.state.turnSeconds * 1000;
+  // While paused the clock is frozen at the pause's start; endPause adds the paused time back.
+  const deadline = (draft.state.pause?.startedAt ?? at) + draft.state.turnSeconds * 1000;
   draft.state.turn = { playerId, deadline };
   draft.emit({ type: "turn_changed", playerId, deadline }, at);
 }
@@ -359,6 +411,7 @@ function abandon(draft: Draft, at: number) {
   s.status = "abandoned";
   s.turn = null;
   s.lockUntil = null;
+  s.pause = null;
   s.abandonAt = null;
   s.lobbyExpiresAt = null;
   s.finishedAt = at;
@@ -382,6 +435,7 @@ export function computeRanks(players: readonly Pick<PlayerState, "id" | "pairs">
 export function nextDueAt(s: GameState): number | null {
   if (s.status === "lobby") return s.lobbyExpiresAt;
   if (s.status !== "playing") return null;
+  if (s.pause) return s.pause.until; // everything else is frozen
   // While mismatched tiles are on show, the lock is the only thing that can happen next.
   if (s.lockUntil !== null) return s.lockUntil;
   const candidates = [s.turn?.deadline, s.abandonAt].filter((t): t is number => t != null);
@@ -406,6 +460,7 @@ function applyDue(draft: Draft, due: number) {
   const s = draft.state;
 
   if (s.status === "lobby") return abandon(draft, due);
+  if (s.pause) return endPause(draft, due);
 
   if (s.lockUntil !== null && s.lockUntil <= due) {
     s.lockUntil = null;
@@ -433,6 +488,12 @@ function applyDue(draft: Draft, due: number) {
 // ---------------------------------------------------------------------------
 // Redaction
 // ---------------------------------------------------------------------------
+
+function canPause(s: GameState, viewerId: string | null): boolean {
+  if (s.status !== "playing" || s.pause) return false;
+  const player = s.players.find((p) => p.id === viewerId);
+  return !!player && player.status === "active" && player.pausesUsed < RULES.pausesPerPlayer;
+}
 
 /** The only way game state leaves the server. Face-down tiles never carry their face. */
 export function toView(s: GameState, viewerId: string | null): TableView {
@@ -469,6 +530,8 @@ export function toView(s: GameState, viewerId: string | null): TableView {
     }),
     turn: s.turn ? { ...s.turn } : null,
     lockUntil: s.lockUntil,
+    pause: s.pause ? { ...s.pause } : null,
+    canPause: canPause(s, viewerId),
     seq: s.seq,
   };
 }
