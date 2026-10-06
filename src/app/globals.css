@@ -1568,3 +1568,33 @@ a {
     transition: none;
   }
 }
+
+/* Cookie notice (vanilla-cookieconsent): map its variables onto the app palette so it follows the theme. */
+#cc-main {
+  --cc-font-family: var(--font-body), system-ui, sans-serif;
+  --cc-bg: var(--card);
+  --cc-primary-color: var(--ink);
+  --cc-secondary-color: var(--ink-soft);
+  --cc-btn-primary-bg: var(--cobalt);
+  --cc-btn-primary-color: #fff;
+  --cc-btn-primary-border-color: var(--cobalt);
+  --cc-btn-primary-hover-bg: var(--cobalt-deep);
+  --cc-btn-primary-hover-color: #fff;
+  --cc-btn-primary-hover-border-color: var(--cobalt-deep);
+  --cc-btn-secondary-bg: transparent;
+  --cc-btn-secondary-color: var(--link);
+  --cc-btn-secondary-border-color: var(--line);
+  --cc-btn-secondary-hover-bg: var(--paper);
+  --cc-btn-secondary-hover-color: var(--link-strong);
+  --cc-btn-secondary-hover-border-color: var(--link);
+  --cc-separator-border-color: var(--line);
+  --cc-toggle-on-bg: var(--cobalt);
+  --cc-toggle-readonly-bg: var(--line);
+  --cc-section-category-border: var(--line);
+  --cc-cookie-category-block-bg: var(--paper);
+  --cc-cookie-category-block-border: var(--line);
+  --cc-cookie-category-block-hover-bg: var(--paper);
+  --cc-cookie-category-block-hover-border: var(--line);
+  --cc-overlay-bg: rgb(15 21 36 / 0.6);
+  --cc-link-color: var(--link);
+}
