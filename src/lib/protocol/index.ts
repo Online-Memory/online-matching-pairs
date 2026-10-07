@@ -73,9 +73,18 @@ export type FlipRequest = z.infer<typeof flipRequestSchema>;
 export type TableStatus = "lobby" | "playing" | "finished" | "abandoned";
 export type PlayerStatus = "active" | "away" | "left";
 
-/** A face-down tile carries no face. Ids are board positions; faces were shuffled server-side. */
+/** Request header that carries the cheat codes switched on in the page URL (e.g. `?cheatmode=true`). */
+export const CHEAT_HEADER = "x-cheat";
+/** Every cheat code. Each is a query-string key that is switched on with `=true`. */
+export const CHEAT_CODES = ["cheatmode"] as const;
+export type CheatCode = (typeof CHEAT_CODES)[number];
+
+/**
+ * A face-down tile carries no face. Ids are board positions; faces were shuffled server-side.
+ * The one exception is `peek`: only present when the viewer opted in with the `cheatmode` code.
+ */
 export type TileView =
-  | { id: number; state: "hidden" }
+  | { id: number; state: "hidden"; peek?: number }
   | { id: number; state: "revealed"; face: number }
   | { id: number; state: "matched"; face: number; by: string };
 
@@ -88,6 +97,8 @@ export type PlayerView = {
   isGuest: boolean;
   moves: number;
   pairs: number;
+  /** Consecutive pairs matched right now; 0 after a miss or a timeout. Public. */
+  streak: number;
   bestStreak: number;
   rank: number | null;
 };

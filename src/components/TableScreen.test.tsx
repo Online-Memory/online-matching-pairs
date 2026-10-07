@@ -1,10 +1,10 @@
 // @vitest-environment jsdom
-import { cleanup, render } from "@testing-library/react";
+import { act, cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import * as meModule from "@/lib/client/use-me";
 import * as tableModule from "@/lib/client/use-table";
-import type { MeResponse, TableView } from "@/lib/protocol";
+import type { MeResponse, PublicEvent, TableView } from "@/lib/protocol";
 
 import { TableScreen } from "./TableScreen";
 
@@ -33,11 +33,11 @@ const lobby = {
 
 const join = vi.fn(async () => {});
 
-function mockTable(view: TableView) {
+function mockTable(view: TableView, events: PublicEvent[] = []) {
   vi.spyOn(tableModule, "useTable").mockReturnValue({
     view,
     serverOffset: 0,
-    events: [],
+    events,
     loadError: null,
     actionError: null,
     reconnecting: false,
@@ -117,5 +117,65 @@ describe("TableScreen pause", () => {
     const { getByTestId } = render(<TableScreen code="ABC234" />);
     expect(getByTestId("pause-bar")).toBeTruthy();
     expect(getByTestId("status-line").textContent).toBe("Game paused");
+  });
+});
+
+describe("TableScreen match effects", () => {
+  const playing = {
+    ...lobby,
+    status: "playing",
+    youId: "h",
+    players: [
+      { id: "h", name: "Host", seat: 0, status: "active", isHost: true, isGuest: false, pairs: 3, streak: 3 },
+    ],
+    turn: { playerId: "h", deadline: 100_000 },
+    pause: null,
+    canPause: false,
+  } as unknown as TableView;
+  const started: PublicEvent = { seq: 1, at: 1, type: "turn_changed", playerId: "h", deadline: 100_000 };
+  const matched: PublicEvent = { seq: 2, at: 2, type: "pair_matched", playerId: "h", tileIds: [0, 1] };
+  const revealed: PublicEvent = { seq: 3, at: 3, type: "tile_revealed", playerId: "h", tileId: 4, face: 2 };
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(null);
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it("pops the score with the streak when a pair is matched", () => {
+    mockTable(playing, [started]);
+    const { rerender } = render(<TableScreen code="ABC234" />);
+    expect(screen.queryByTestId("score-popup")).toBeNull();
+    mockTable(playing, [started, matched]);
+    rerender(<TableScreen code="ABC234" />);
+    expect(screen.getByTestId("score-popup")).toHaveTextContent("+1 · x3 streak");
+    expect(screen.getByTestId("score-popup")).toHaveAttribute("data-tier", "hot");
+  });
+
+  it("does not replay history that was already there on first load", () => {
+    mockTable(playing, [started, matched]);
+    render(<TableScreen code="ABC234" />);
+    expect(screen.queryByTestId("score-popup")).toBeNull();
+  });
+
+  it("clears the pop-up on its own timer even when a later event arrives first", () => {
+    mockTable(playing, [started]);
+    const { rerender } = render(<TableScreen code="ABC234" />);
+    mockTable(playing, [started, matched]);
+    rerender(<TableScreen code="ABC234" />);
+    mockTable(playing, [started, matched, revealed]); // next flip lands within the effect window
+    rerender(<TableScreen code="ABC234" />);
+    expect(screen.getByTestId("score-popup")).toBeTruthy();
+    act(() => void vi.advanceTimersByTime(1500));
+    expect(screen.queryByTestId("score-popup")).toBeNull();
+  });
+
+  it("says just +1 when there is no streak", () => {
+    const single = { ...playing, players: [{ ...playing.players[0]!, streak: 1 }] } as TableView;
+    mockTable(single, [started]);
+    const { rerender } = render(<TableScreen code="ABC234" />);
+    mockTable(single, [started, matched]);
+    rerender(<TableScreen code="ABC234" />);
+    expect(screen.getByTestId("score-popup")).toHaveTextContent(/^\+1$/);
   });
 });

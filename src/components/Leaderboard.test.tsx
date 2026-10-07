@@ -47,6 +47,14 @@ describe("Leaderboard", () => {
     expect(rows[2]).toHaveClass("you");
   });
 
+  it("shows each player's tier next to their rating", async () => {
+    vi.spyOn(api, "leaderboard").mockResolvedValue(board([entry(1, "Zed"), entry(40, "Low")]));
+    render(<Leaderboard />);
+    const rows = await screen.findAllByRole("row");
+    expect(within(rows[1]!).getByText("Gold")).toBeInTheDocument();
+    expect(within(rows[2]!).getByText("Bronze")).toBeInTheDocument();
+  });
+
   it("pins the viewer's row when it is outside the list", async () => {
     vi.spyOn(api, "leaderboard").mockResolvedValue(
       board([entry(1, "Zed")], entry(57, "Alice", { isYou: true })),

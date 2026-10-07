@@ -3,10 +3,12 @@
 import { useEffect, useState } from "react";
 
 import { api } from "@/lib/client/api";
+import { tierForRating } from "@/lib/client/tiers";
 import { useMe } from "@/lib/client/use-me";
 import type { LeaderboardEntry, LeaderboardResponse, LeaderboardScope } from "@/lib/protocol";
 
 import { LoadingNotice } from "./Spinner";
+import { TierBadge } from "./TierBadge";
 
 function Row({ entry, testId }: { entry: LeaderboardEntry; testId?: string }) {
   return (
@@ -15,7 +17,9 @@ function Row({ entry, testId }: { entry: LeaderboardEntry; testId?: string }) {
       <td>
         {entry.name} {entry.handle && <span className="hint">@{entry.handle}</span>}
       </td>
-      <td>{entry.rating}</td>
+      <td>
+        {entry.rating} <TierBadge tier={tierForRating(entry.rating).tier} />
+      </td>
       <td>{entry.ratedGames}</td>
       <td>{entry.wins}</td>
     </tr>

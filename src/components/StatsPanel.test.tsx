@@ -30,6 +30,13 @@ describe("StatsPanel", () => {
     expect(panel.getByText("6")).toBeInTheDocument();
   });
 
+  it("shows the tier for a rated player, and none for an unrated one", () => {
+    const { rerender } = render(<StatsPanel stats={stats} />);
+    expect(within(screen.getByTestId("stats")).getByText("Silver")).toBeInTheDocument();
+    rerender(<StatsPanel stats={{ ...stats, rating: null }} />);
+    expect(screen.queryByText("Silver")).toBeNull();
+  });
+
   it("copes with a player who has no rated or versus games", () => {
     render(
       <StatsPanel

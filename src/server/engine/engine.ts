@@ -496,7 +496,12 @@ function canPause(s: GameState, viewerId: string | null): boolean {
 }
 
 /** The only way game state leaves the server. Face-down tiles never carry their face. */
-export function toView(s: GameState, viewerId: string | null): TableView {
+export type ViewOptions = {
+  /** Cheat mode: hidden tiles also carry their face as `peek`. Only the opted-in viewer gets this. */
+  revealAll?: boolean;
+};
+
+export function toView(s: GameState, viewerId: string | null, options: ViewOptions = {}): TableView {
   const ranks = s.status === "finished" ? computeRanks(s.players) : null;
   return {
     code: s.code,
@@ -520,11 +525,14 @@ export function toView(s: GameState, viewerId: string | null): TableView {
         isGuest: p.userId === null,
         moves: p.moves,
         pairs: p.pairs,
+        streak: p.streak,
         bestStreak: p.bestStreak,
         rank: ranks?.get(p.id) ?? null,
       })),
     tiles: s.board.map((t, id): TileView => {
-      if (t.state === "hidden") return { id, state: "hidden" };
+      if (t.state === "hidden") {
+        return options.revealAll ? { id, state: "hidden", peek: t.face } : { id, state: "hidden" };
+      }
       if (t.state === "revealed") return { id, state: "revealed", face: t.face };
       return { id, state: "matched", face: t.face, by: t.by ?? "" };
     }),

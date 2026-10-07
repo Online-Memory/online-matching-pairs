@@ -18,6 +18,7 @@ const players: PlayerView[] = [
     isGuest: true,
     moves: 1,
     pairs: 1,
+    streak: 1,
     bestStreak: 1,
     rank: null,
   },
@@ -30,6 +31,23 @@ const tiles: TileView[] = [
 ];
 
 describe("Board", () => {
+  it("flags the last pair when exactly two tiles are left unmatched", () => {
+    const { container } = render(
+      <Board tiles={tiles} theme="001" players={players} canFlip onFlip={() => {}} />,
+    );
+    expect(container.querySelector(".board-area")).toHaveAttribute("data-last-pair", "true");
+  });
+
+  it("does not flag it while more tiles remain, or on a one-pair board", () => {
+    const many: TileView[] = [0, 1, 2, 3].map((id) => ({ id, state: "hidden" }));
+    const { container, rerender } = render(
+      <Board tiles={many} theme="001" players={players} canFlip onFlip={() => {}} />,
+    );
+    expect(container.querySelector(".board-area")).not.toHaveAttribute("data-last-pair");
+    rerender(<Board tiles={many.slice(0, 2)} theme="001" players={players} canFlip onFlip={() => {}} />);
+    expect(container.querySelector(".board-area")).not.toHaveAttribute("data-last-pair");
+  });
+
   it("renders pictures only for face-up tiles", () => {
     const { container } = render(
       <Board tiles={tiles} theme="001" players={players} canFlip onFlip={() => {}} />,

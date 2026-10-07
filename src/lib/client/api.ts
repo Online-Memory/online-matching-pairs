@@ -15,6 +15,7 @@ import type {
 } from "@/lib/protocol";
 
 import { ApiError } from "./api-error";
+import { cheatHeader } from "./cheats";
 import { guarded } from "./connection";
 
 export { ApiError };
@@ -38,7 +39,10 @@ async function fetchOnce<T>(path: string, init?: RequestInit): Promise<T> {
     response = await fetch(path, {
       ...init,
       cache: "no-store",
-      headers: init?.body ? { "content-type": "application/json" } : undefined,
+      headers: {
+        ...(init?.body ? { "content-type": "application/json" } : {}),
+        ...(path.startsWith("/api/tables/") ? cheatHeader() : {}),
+      },
     });
   } catch {
     throw new ApiError("network", "Can't reach the server. Check your connection.", 0);

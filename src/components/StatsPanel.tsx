@@ -1,4 +1,7 @@
+import { tierForRating } from "@/lib/client/tiers";
 import type { StatsResponse } from "@/lib/protocol";
+
+import { TierBadge } from "./TierBadge";
 
 const percent = (value: number | null) => (value === null ? "–" : `${Math.round(value * 100)}%`);
 
@@ -11,6 +14,11 @@ export function StatsPanel({ stats }: { stats: StatsResponse }) {
           <dt>Rating</dt>
           <dd>{stats.rating ? stats.rating.value : "Unrated"}</dd>
           {stats.rating && <dd className="hint">#{stats.rating.rank}</dd>}
+          {stats.rating && (
+            <dd>
+              <TierBadge tier={tierForRating(stats.rating.value).tier} />
+            </dd>
+          )}
         </div>
         <div>
           <dt>Games</dt>

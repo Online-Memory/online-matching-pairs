@@ -13,6 +13,7 @@ const player = (id: string, name: string, pairs: number, rank: number, moves = 1
   isGuest: true,
   moves,
   pairs,
+  streak: 0,
   bestStreak: 0,
   rank,
 });

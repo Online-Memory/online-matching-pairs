@@ -3,6 +3,7 @@ import "server-only";
 import { NextResponse } from "next/server";
 
 import type { SnapshotResponse } from "@/lib/protocol";
+import { viewOptions } from "@/server/cheats";
 import { getViewer } from "@/server/auth";
 import type { Action } from "@/server/engine";
 import { route, sinceParam, tableCode } from "@/server/http";
@@ -20,7 +21,7 @@ export function playerAction(toAction: (request: Request) => Promise<Action>) {
     const action = await toAction(request);
     const service = await getTableService();
     const identity = { playerId: viewer.playerId, userId: viewer.userId, name: viewer.accountName ?? "" };
-    const snapshot = await service.act(code, identity, action, sinceParam(request));
+    const snapshot = await service.act(code, identity, action, sinceParam(request), viewOptions(request));
     if (snapshot.view.status === "finished") rateAfterResponse(code);
     return NextResponse.json<SnapshotResponse>(snapshot);
   });

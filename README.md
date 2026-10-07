@@ -84,6 +84,15 @@ in-memory PGlite.
   Playwright fixture on every E2E scenario. The fixture checks API bodies, image requests and the DOM of face-down
   tiles.
 
+### Cheat codes (deliberate exception)
+
+Opening a table page with `?cheatmode=true` makes the client send `x-cheat: cheatmode` on table requests. The server
+then adds `peek` (the face) to the face-down tiles in the response built for that one viewer, and the UI draws them
+faintly. It is on in development and tests; a production build ignores the header unless `ENABLE_CHEATS=1` is set.
+Rated games are not excluded. Without the header,
+face-down tiles are still exactly `{id, state}`. New codes go in `CHEAT_CODES` (`src/lib/protocol`) and
+`src/server/cheats.ts`.
+
 ## Deploy (Vercel + Neon)
 
 1. Import the repo in Vercel and add the **Neon** integration from the Vercel Marketplace. It sets `DATABASE_URL`

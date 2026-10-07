@@ -24,6 +24,7 @@ import {
   RULES,
   tick,
   toView,
+  type ViewOptions,
   type Action,
   type EngineResult,
   type GameState,
@@ -98,20 +99,31 @@ export class TableService {
   }
 
   /** Poll: applies any due deadlines, then answers relative to the client's last seen `since`. */
-  async poll(code: string, viewerId: string | null, since: number): Promise<PollResponse> {
+  async poll(
+    code: string,
+    viewerId: string | null,
+    since: number,
+    view: ViewOptions = {},
+  ): Promise<PollResponse> {
     const { state, ring } = await this.transact(code, null);
     if (since >= state.seq) {
       const seated = viewerId !== null && state.players.some((p) => p.id === viewerId);
       return { unchanged: true, serverNow: this.clock(), youId: seated ? viewerId : null };
     }
-    return this.snapshot(state, ring, viewerId, since);
+    return this.snapshot(state, ring, viewerId, since, view);
   }
 
-  async act(code: string, actor: Identity, action: Action, since: number): Promise<SnapshotResponse> {
+  async act(
+    code: string,
+    actor: Identity,
+    action: Action,
+    since: number,
+    view: ViewOptions = {},
+  ): Promise<SnapshotResponse> {
     const { state, ring } = await this.transact(code, (s, now) =>
       applyAction(s, actor.playerId, action, now, this.rng),
     );
-    return this.snapshot(state, ring, actor.playerId, since);
+    return this.snapshot(state, ring, actor.playerId, since, view);
   }
 
   private snapshot(
@@ -119,11 +131,12 @@ export class TableService {
     ring: PublicEvent[],
     viewerId: string | null,
     since: number,
+    options: ViewOptions,
   ): SnapshotResponse {
     const oldest = ring[0]?.seq ?? state.seq + 1;
     // If the client is further behind than the ring reaches, it gets the snapshot alone.
     const events = since >= oldest - 1 ? ring.filter((e) => e.seq > since) : [];
-    return { unchanged: false, serverNow: this.clock(), view: toView(state, viewerId), events };
+    return { unchanged: false, serverNow: this.clock(), view: toView(state, viewerId, options), events };
   }
 
   /**

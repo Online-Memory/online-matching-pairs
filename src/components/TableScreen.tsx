@@ -1,22 +1,24 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 
 import { finishMessage } from "@/lib/client/finish-message";
+import { BURST_COUNT, streakTier, type StreakTier } from "@/lib/client/streak-tier";
 import { useMe } from "@/lib/client/use-me";
 import { useTable } from "@/lib/client/use-table";
 import type { PublicEvent, TableView } from "@/lib/protocol";
 
 import { Board } from "./Board";
 import { Button } from "./Button";
-import { CELEBRATION_MS, Confetti } from "./Confetti";
+import { CELEBRATION_MS, Confetti, ConfettiBurst } from "./Confetti";
 import { FinishBanner } from "./FinishBanner";
 import { FlipBackBar } from "./FlipBackBar";
 import { Lobby } from "./Lobby";
 import { PauseBar } from "./PauseBar";
 import { Results } from "./Results";
 import { Scoreboard } from "./Scoreboard";
+import { ScorePopup } from "./ScorePopup";
 import { Spotlight } from "./Spotlight";
 import { LoadingNotice } from "./Spinner";
 
@@ -71,6 +73,41 @@ export function TableScreen({ code, autoJoin = false }: { code: string; autoJoin
     const id = setTimeout(() => setCelebrating([]), 1400);
     return () => clearTimeout(id);
   }, [table.events]);
+
+  // Score pop-up + confetti burst at the matched pair. The streak comes from the view, which arrives
+  // in the same response as the event. Its own timer: the events effect above is re-run (and its
+  // cleanup fires) by any later event, so it must not own this timeout.
+  type MatchFx = { key: number; x: number; y: number; label: string; tier: StreakTier };
+  const [matchFx, setMatchFx] = useState<MatchFx | null>(null);
+  const playersRef = useRef(view?.players);
+  useEffect(() => {
+    playersRef.current = view?.players;
+  });
+  const seenFxSeq = useRef<number | null>(null);
+  useEffect(() => {
+    const last = table.events.at(-1);
+    if (!last) return;
+    const previous = seenFxSeq.current;
+    seenFxSeq.current = last.seq;
+    if (previous === null) return;
+    const matched = table.events.findLast((e) => e.seq > previous && e.type === "pair_matched");
+    if (matched?.type !== "pair_matched") return;
+    const streak = playersRef.current?.find((p) => p.id === matched.playerId)?.streak ?? 0;
+    const tile = document.querySelector<HTMLElement>(`[data-tile-id="${matched.tileIds[1]}"]`);
+    const box = tile?.getBoundingClientRect();
+    setMatchFx({
+      key: matched.seq,
+      x: box ? box.left + box.width / 2 : window.innerWidth / 2,
+      y: box ? box.top + box.height / 2 : window.innerHeight / 2,
+      label: streak >= 2 ? `+1 · x${streak} streak` : "+1",
+      tier: streakTier(streak),
+    });
+  }, [table.events]);
+  useEffect(() => {
+    if (!matchFx) return;
+    const id = setTimeout(() => setMatchFx(null), 1500);
+    return () => clearTimeout(id);
+  }, [matchFx]);
 
   // After a miss the player whose turn it is can click anywhere to turn the pair face down early.
   const canDismiss =
@@ -193,6 +230,11 @@ export function TableScreen({ code, autoJoin = false }: { code: string; autoJoin
             <p className="status-line" role="status" data-testid="status-line">
               {statusText(view, myTurn)}
             </p>
+            {view.tiles.some((t) => t.state === "hidden" && t.peek !== undefined) && (
+              <p className="status-line" data-testid="cheat-badge">
+                Cheat mode: face-down tiles are shown faintly
+              </p>
+            )}
             {view.pause && (
               <PauseBar
                 view={view}
@@ -246,6 +288,13 @@ export function TableScreen({ code, autoJoin = false }: { code: string; autoJoin
             </p>
           </div>
         </div>
+      )}
+
+      {matchFx && (
+        <Fragment key={matchFx.key}>
+          <ScorePopup x={matchFx.x} y={matchFx.y} label={matchFx.label} tier={matchFx.tier} />
+          <ConfettiBurst x={matchFx.x} y={matchFx.y} count={BURST_COUNT[matchFx.tier]} delayMs={320} />
+        </Fragment>
       )}
 
       {confetti && view && (

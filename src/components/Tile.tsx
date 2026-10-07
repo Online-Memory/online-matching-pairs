@@ -36,7 +36,7 @@ export function Tile({ tile, theme, ownerSeat, ownerName, canFlip, onFlip, celeb
       className="tile"
       data-state={tile.state}
       data-tile-id={tile.id}
-      data-face={tile.state === "hidden" ? undefined : tile.face}
+      data-face={tile.state === "hidden" ? tile.peek : tile.face}
       data-seat={ownerSeat ?? undefined}
       data-celebrate={celebrate || undefined}
       style={zoomLean ? ({ "--zoom-x": zoomLean.x, "--zoom-y": zoomLean.y } as CSSProperties) : undefined}
@@ -47,6 +47,9 @@ export function Tile({ tile, theme, ownerSeat, ownerName, canFlip, onFlip, celeb
       <span className="tile-inner">
         <span className="tile-back" />
         {tile.state !== "hidden" && <span className="tile-face" style={faceSprite(theme, tile.face)} />}
+        {tile.state === "hidden" && tile.peek !== undefined && (
+          <span className="tile-peek" data-testid="tile-peek" style={faceSprite(theme, tile.peek)} />
+        )}
       </span>
     </button>
   );

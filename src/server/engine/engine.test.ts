@@ -295,6 +295,43 @@ describe("toView", () => {
     expect(view.youId).toBe("p2");
     expect(toView(s, "stranger").youId).toBeNull();
   });
+
+  it("only adds peek to hidden tiles when revealAll is asked for", () => {
+    const s = act(started(2, { pairs: 18 }), "p1", { type: "flip", tileId: 3 }, T0 + 500);
+    const view = toView(s, "p2", { revealAll: true });
+    for (const tile of view.tiles) {
+      if (tile.id === 3) expect(tile).toEqual({ id: 3, state: "revealed", face: s.board[3]!.face });
+      else expect(tile).toEqual({ id: tile.id, state: "hidden", peek: s.board[tile.id]!.face });
+    }
+    expect(toView(s, "p2", {})).toEqual(toView(s, "p2"));
+  });
+
+  it("exposes the current streak to everyone, and a miss or a timeout resets it", () => {
+    let s = started(2, { pairs: 18 });
+    const [a, b] = pairOf(s);
+    s = act(s, "p1", { type: "flip", tileId: a }, T0 + 1000);
+    s = act(s, "p1", { type: "flip", tileId: b }, T0 + 2000);
+    const [c, d] = pairOf(s);
+    s = act(s, "p1", { type: "flip", tileId: c }, T0 + 3000);
+    s = act(s, "p1", { type: "flip", tileId: d }, T0 + 4000);
+    // A stranger (not seated) sees it too: it is public, so a reload or a spectator stays correct.
+    expect(toView(s, "stranger").players[0]).toMatchObject({ id: "p1", streak: 2, bestStreak: 2 });
+
+    const [m, n] = mismatch(s);
+    s = act(s, "p1", { type: "flip", tileId: m }, T0 + 5000);
+    s = act(s, "p1", { type: "flip", tileId: n }, T0 + 6000);
+    expect(toView(s, "p2").players[0]).toMatchObject({ streak: 0, bestStreak: 2 });
+  });
+
+  it("a turn timeout resets the streak in the view", () => {
+    let s = started(2, { pairs: 18 });
+    const [a, b] = pairOf(s);
+    s = act(s, "p1", { type: "flip", tileId: a }, T0 + 1000);
+    s = act(s, "p1", { type: "flip", tileId: b }, T0 + 2000);
+    expect(toView(s, "p2").players[0]).toMatchObject({ streak: 1 });
+    s = tick(s, T0 + 2000 + 20_000).state; // the fresh 20s turn timer runs out
+    expect(toView(s, "p2").players[0]).toMatchObject({ streak: 0, bestStreak: 1 });
+  });
 });
 
 // ---------------------------------------------------------------------------

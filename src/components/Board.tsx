@@ -27,6 +27,8 @@ export function Board({ tiles, theme, players, canFlip, celebrating, onFlip }: P
   const areaRef = useRef<HTMLDivElement>(null);
   const [fit, setFit] = useState<GridFit | null>(null);
   const count = tiles.length;
+  // Public information (matched tiles are visible to everyone): two left means the next match ends it.
+  const lastPair = count > 2 && tiles.filter((t) => t.state !== "matched").length === 2;
 
   // The faces all come from one sprite sheet: fetch it up front so the first flip is instant.
   useEffect(() => {
@@ -73,7 +75,7 @@ export function Board({ tiles, theme, players, canFlip, celebrating, onFlip }: P
   } as CSSProperties;
 
   return (
-    <div className="board-area" ref={areaRef}>
+    <div className="board-area" ref={areaRef} data-last-pair={lastPair || undefined}>
       <div className="board" style={style} data-can-flip={canFlip} role="group" aria-label="Board">
         {tiles.map((tile) => {
           const owner = tile.state === "matched" ? players.find((p) => p.id === tile.by) : undefined;

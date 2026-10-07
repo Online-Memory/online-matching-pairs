@@ -1,7 +1,10 @@
 import Link from "next/link";
 
+import { computeAwards } from "@/lib/client/awards";
 import type { TableView } from "@/lib/protocol";
 
+import { AwardChips } from "./AwardChips";
+import { Podium } from "./Podium";
 import { RatingChange } from "./RatingChange";
 import { ordinal } from "./Scoreboard";
 
@@ -9,6 +12,7 @@ export function Results({ view }: { view: TableView }) {
   const ranked = [...view.players].sort((a, b) => (a.rank ?? 99) - (b.rank ?? 99));
   const winners = ranked.filter((p) => p.rank === 1);
   const youWon = winners.some((p) => p.id === view.youId);
+  const awards = computeAwards(view.players, view.pairs);
   const headline =
     view.players.length === 1
       ? `All ${view.pairs} pairs in ${view.players[0]!.moves} moves`
@@ -23,6 +27,7 @@ export function Results({ view }: { view: TableView }) {
   return (
     <section className="results" aria-live="polite">
       <h2>{headline}</h2>
+      <Podium players={view.players} />
       <table>
         <thead>
           <tr>
@@ -39,6 +44,7 @@ export function Results({ view }: { view: TableView }) {
               <td>{p.rank ? ordinal(p.rank) : "–"}</td>
               <td>
                 <span className="seat-token" aria-hidden /> {p.name}
+                <AwardChips awards={awards[p.id] ?? []} />
               </td>
               <td>{p.pairs}</td>
               <td>{p.moves}</td>
