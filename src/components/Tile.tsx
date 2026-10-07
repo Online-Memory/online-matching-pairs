@@ -2,7 +2,7 @@
 
 import type { CSSProperties } from "react";
 
-import { faceImageUrl, type TileView } from "@/lib/protocol";
+import { faceSprite, type TileView } from "@/lib/protocol";
 
 type Props = {
   tile: TileView;
@@ -19,8 +19,8 @@ type Props = {
 };
 
 /**
- * A face-down tile renders no picture at all: the face image is only requested once the server has
- * revealed which picture is there.
+ * A face-down tile renders no picture at all: the face is only drawn (from the theme sprite) once the
+ * server has revealed which picture is there.
  */
 export function Tile({ tile, theme, ownerSeat, ownerName, canFlip, onFlip, celebrate, zoomLean }: Props) {
   const label =
@@ -46,10 +46,7 @@ export function Tile({ tile, theme, ownerSeat, ownerName, canFlip, onFlip, celeb
     >
       <span className="tile-inner">
         <span className="tile-back" />
-        {tile.state !== "hidden" && (
-          // eslint-disable-next-line @next/next/no-img-element -- tiny static webp, loaded on reveal only
-          <img className="tile-face" src={faceImageUrl(theme, tile.face)} alt="" draggable={false} />
-        )}
+        {tile.state !== "hidden" && <span className="tile-face" style={faceSprite(theme, tile.face)} />}
       </span>
     </button>
   );

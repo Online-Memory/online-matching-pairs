@@ -2,14 +2,14 @@ import "server-only";
 
 import { z } from "zod";
 
-import { MISMATCH_LOCK_MS } from "@/lib/protocol";
+import { MIN_REVEAL_MS, MISMATCH_LOCK_MS } from "@/lib/protocol";
 
 /** Timings the rules depend on. Exported so tests can reason about them. */
 export const RULES = {
   /** Mismatched pair stays face up this long unless the player dismisses it sooner. */
   mismatchLockMs: MISMATCH_LOCK_MS,
   /** A dismissal is ignored until the pair has been face up this long, so a 1s poll always sees it. */
-  minRevealMs: 1_500,
+  minRevealMs: MIN_REVEAL_MS,
   /** Consecutive turn timeouts before a player is marked away and skipped. */
   timeoutsBeforeAway: 3,
   /** Table is abandoned when nobody active is left for this long. */

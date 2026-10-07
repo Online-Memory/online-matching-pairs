@@ -4,6 +4,7 @@ import { Atkinson_Hyperlegible, Bricolage_Grotesque } from "next/font/google";
 import { ConnectionBanner } from "@/components/ConnectionBanner";
 import { CookieNotice } from "@/components/CookieNotice";
 import { FriendRequestBanner } from "@/components/FriendRequestBanner";
+import { InviteBanner } from "@/components/InviteBanner";
 import { PresenceBeat } from "@/components/PresenceBeat";
 import { SiteHeader } from "@/components/SiteHeader";
 import { ThemeProvider } from "@/components/ThemeProvider";
@@ -40,6 +41,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <ConnectionBanner />
           <PresenceBeat />
           <FriendRequestBanner />
+          <InviteBanner />
           <Toaster />
           <CookieNotice />
           {children}

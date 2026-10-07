@@ -4,6 +4,7 @@ import type {
   ErrorResponse,
   FriendsResponse,
   HistoryEntry,
+  HistoryPage,
   LeaderboardResponse,
   LeaderboardScope,
   MeResponse,
@@ -77,7 +78,10 @@ export const api = {
   leave: (code: string, since: number) => post<SnapshotResponse>(table(code, "leave", since)),
   publicTables: () => request<PublicTablesResponse>("/api/public-tables"),
   me: () => request<MeResponse>("/api/me"),
-  history: () => request<HistoryEntry[]>("/api/me/history"),
+  historyPage: (page: number, pageSize: number) =>
+    request<HistoryPage>(`/api/me/history?page=${page}&pageSize=${pageSize}`),
+  /** The most recent finished games. */
+  history: (): Promise<HistoryEntry[]> => api.historyPage(1, 10).then((p) => p.entries),
   stats: () => request<StatsResponse>("/api/me/stats"),
   leaderboard: (scope: LeaderboardScope) => request<LeaderboardResponse>(`/api/leaderboard?scope=${scope}`),
   friends: () => request<FriendsResponse>("/api/friends"),
@@ -88,7 +92,9 @@ export const api = {
   dismissInvite: (id: string) =>
     send<{ ok: true }>("DELETE", `/api/friends/invites/${encodeURIComponent(id)}`),
   setHandle: (handle: string) => send<{ handle: string }>("PUT", "/api/me/handle", { handle }),
-  heartbeat: () => send<{ handle: string }>("PUT", "/api/me/presence"),
+  /** `tableCode`: the table this browser is seated at; null for none, omitted to leave it as is. */
+  heartbeat: (tableCode?: string | null) =>
+    send<{ handle: string }>("PUT", "/api/me/presence", { tableCode }),
   inviteFriend: (code: string, userId: string) =>
     post<{ ok: true }>(`/api/tables/${encodeURIComponent(code)}/invites`, { userId }),
 };

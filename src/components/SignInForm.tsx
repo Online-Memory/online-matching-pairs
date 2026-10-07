@@ -6,6 +6,8 @@ import { useState } from "react";
 import { authClient } from "@/lib/client/auth-client";
 import { invalidateMe, useMe } from "@/lib/client/use-me";
 
+import { Button } from "./Button";
+
 export function SignInForm() {
   const router = useRouter();
   const me = useMe();
@@ -14,7 +16,7 @@ export function SignInForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [pending, setPending] = useState(false);
+  const [pending, setPending] = useState<"email" | "google" | null>(null);
 
   if (me && !me.authEnabled) {
     return (
@@ -24,7 +26,8 @@ export function SignInForm() {
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    setPending(true);
+    if (pending) return;
+    setPending("email");
     setError(null);
     const result =
       mode === "sign-in"
@@ -32,7 +35,7 @@ export function SignInForm() {
         : await authClient.signUp.email({ email, password, name: name.trim() });
     if (result.error) {
       setError(result.error.message ?? "That didn't work. Check your details and try again.");
-      setPending(false);
+      setPending(null);
       return;
     }
     invalidateMe();
@@ -42,14 +45,15 @@ export function SignInForm() {
 
   // On success the browser leaves for Google, so only the failure path runs here.
   async function continueWithGoogle() {
-    setPending(true);
+    if (pending) return;
+    setPending("google");
     setError(null);
     const result = await authClient.signIn.social({ provider: "google", callbackURL: "/profile" });
     // Set when Neon Auth refuses to start the flow: provider disabled, untrusted origin (e.g. a
     // preview domain missing from the trusted domains), network down.
     if (result.error) {
       setError(result.error.message ?? "Google sign-in isn't available right now. Try email instead.");
-      setPending(false);
+      setPending(null);
     }
   }
 
@@ -58,9 +62,14 @@ export function SignInForm() {
       <h1>{mode === "sign-in" ? "Sign in" : "Create an account"}</h1>
       <p>An account keeps your name and a record of the games you&apos;ve finished.</p>
 
-      <button type="button" className="button-quiet button-wide" onClick={() => void continueWithGoogle()}>
+      <Button
+        className="button-quiet button-wide"
+        onClick={() => void continueWithGoogle()}
+        disabled={pending !== null}
+        pending={pending === "google"}
+      >
         Continue with Google
-      </button>
+      </Button>
 
       {mode === "sign-up" && (
         <div className="field">
@@ -101,9 +110,14 @@ export function SignInForm() {
           {error}
         </p>
       )}
-      <button type="submit" className="button button-wide" disabled={pending}>
+      <Button
+        type="submit"
+        className="button button-wide"
+        disabled={pending !== null}
+        pending={pending === "email"}
+      >
         {mode === "sign-in" ? "Sign in" : "Create account"}
-      </button>
+      </Button>
       <button
         type="button"
         className="link-button"

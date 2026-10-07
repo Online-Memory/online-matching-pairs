@@ -5,8 +5,11 @@ import { useState } from "react";
 import { api } from "@/lib/client/api";
 import { useFriends } from "@/lib/client/use-friends";
 import { useMe } from "@/lib/client/use-me";
+import { usePending } from "@/lib/client/use-pending";
 
+import { Button } from "./Button";
 import { InviteList } from "./InviteList";
+import { LoadingNotice } from "./Spinner";
 
 function lastSeen(iso: string) {
   const minutes = Math.max(1, Math.round((Date.now() - new Date(iso).getTime()) / 60_000));
@@ -24,19 +27,25 @@ export function FriendsPanel() {
   const [editing, setEditing] = useState(false);
   const [newHandle, setNewHandle] = useState("");
   const [actionError, setActionError] = useState<string | null>(null);
+  const pending = usePending();
 
-  if (!me?.user || !data) return null;
+  if (!me?.user) return null;
+  if (!data) return error ? null : <LoadingNotice>Loading friends…</LoadingNotice>;
 
-  async function run(action: () => Promise<unknown>) {
+  /** Keeps the button busy until the refreshed list is in, so the row can't be acted on twice. */
+  async function run(key: string, action: () => Promise<unknown>) {
     setActionError(null);
-    try {
-      await action();
-      await refresh();
-      return true;
-    } catch (e) {
-      setActionError(e instanceof Error ? e.message : "Something went wrong");
-      return false;
-    }
+    const ok = await pending.run(key, async () => {
+      try {
+        await action();
+        await refresh();
+        return true;
+      } catch (e) {
+        setActionError(e instanceof Error ? e.message : "Something went wrong");
+        return false;
+      }
+    });
+    return ok ?? false;
   }
 
   const friends = [...data.friends].sort(
@@ -66,7 +75,7 @@ export function FriendsPanel() {
             onSubmit={(e) => {
               e.preventDefault();
               if (!newHandle.trim()) return;
-              void run(() => api.setHandle(newHandle)).then((ok) => {
+              void run("handle", () => api.setHandle(newHandle)).then((ok) => {
                 if (!ok) return;
                 setNewHandle("");
                 setEditing(false);
@@ -90,12 +99,16 @@ export function FriendsPanel() {
               </p>
             </div>
             <div className="form-actions">
-              <button type="submit" className="button" disabled={!newHandle.trim()}>
+              <Button type="submit" disabled={!newHandle.trim()} pending={pending.isPending("handle")}>
                 Save
-              </button>
-              <button type="button" className="button-quiet" onClick={() => setEditing(false)}>
+              </Button>
+              <Button
+                className="button-quiet"
+                onClick={() => setEditing(false)}
+                disabled={pending.isPending("handle")}
+              >
                 Cancel
-              </button>
+              </Button>
             </div>
           </form>
         )}
@@ -104,7 +117,11 @@ export function FriendsPanel() {
       {data.invites.length > 0 && (
         <div className="friends-card">
           <h3>Table invites</h3>
-          <InviteList invites={data.invites} onDismiss={(id) => void run(() => api.dismissInvite(id))} />
+          <InviteList
+            invites={data.invites}
+            isDismissing={(id) => pending.isPending(`invite:${id}`)}
+            onDismiss={(id) => void run(`invite:${id}`, () => api.dismissInvite(id))}
+          />
         </div>
       )}
 
@@ -122,22 +139,23 @@ export function FriendsPanel() {
                   <span className="hint">@{r.handle}</span>
                 </span>
                 <span className="friend-actions">
-                  <button
-                    type="button"
-                    className="button"
+                  <Button
                     aria-label={`Accept ${r.name} (@${r.handle})`}
-                    onClick={() => run(() => api.acceptFriend(r.userId))}
+                    onClick={() => run(`friend:${r.userId}`, () => api.acceptFriend(r.userId))}
+                    disabled={pending.isPending(`friend:${r.userId}:decline`)}
+                    pending={pending.isPending(`friend:${r.userId}`)}
                   >
                     Accept
-                  </button>
-                  <button
-                    type="button"
+                  </Button>
+                  <Button
                     className="button-quiet"
                     aria-label={`Decline ${r.name} (@${r.handle})`}
-                    onClick={() => run(() => api.removeFriend(r.userId))}
+                    onClick={() => run(`friend:${r.userId}:decline`, () => api.removeFriend(r.userId))}
+                    disabled={pending.isPending(`friend:${r.userId}`)}
+                    pending={pending.isPending(`friend:${r.userId}:decline`)}
                   >
                     Decline
-                  </button>
+                  </Button>
                 </span>
               </li>
             ))}
@@ -163,14 +181,14 @@ export function FriendsPanel() {
                   </strong>
                   <span className="hint">{f.online ? "Online" : lastSeen(f.lastSeenAt)}</span>
                 </span>
-                <button
-                  type="button"
+                <Button
                   className="button-quiet"
                   aria-label={`Remove ${f.name} (@${f.handle})`}
-                  onClick={() => run(() => api.removeFriend(f.userId))}
+                  onClick={() => run(`friend:${f.userId}:remove`, () => api.removeFriend(f.userId))}
+                  pending={pending.isPending(`friend:${f.userId}:remove`)}
                 >
                   Remove
-                </button>
+                </Button>
               </li>
             ))}
           </ul>
@@ -185,7 +203,7 @@ export function FriendsPanel() {
         onSubmit={(e) => {
           e.preventDefault();
           if (!handle.trim()) return;
-          void run(() => api.sendFriendRequest(handle)).then((ok) => ok && setHandle(""));
+          void run("request", () => api.sendFriendRequest(handle)).then((ok) => ok && setHandle(""));
         }}
       >
         <div className="field">
@@ -204,9 +222,9 @@ export function FriendsPanel() {
             Ask them for their handle. They&apos;ll need to accept.
           </p>
         </div>
-        <button type="submit" className="button" disabled={!handle.trim()}>
+        <Button type="submit" disabled={!handle.trim()} pending={pending.isPending("request")}>
           Send request
-        </button>
+        </Button>
       </form>
 
       {shown && (

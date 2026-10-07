@@ -2,8 +2,10 @@
 
 import { useState } from "react";
 
+import type { TableAction } from "@/lib/client/use-table";
 import { getTheme, type TableView } from "@/lib/protocol";
 
+import { Button } from "./Button";
 import { InviteFriends } from "./InviteFriends";
 import { JoinPanel } from "./JoinPanel";
 
@@ -11,12 +13,13 @@ type Props = {
   view: TableView;
   needsName: boolean;
   pending: boolean;
+  pendingAction: TableAction | null;
   onJoin: (name?: string) => void;
   onStart: () => void;
   onLeave: () => void;
 };
 
-export function Lobby({ view, needsName, pending, onJoin, onStart, onLeave }: Props) {
+export function Lobby({ view, needsName, pending, pendingAction, onJoin, onStart, onLeave }: Props) {
   const [copied, setCopied] = useState(false);
   const isPlayer = view.youId !== null;
   const isHost = view.youId === view.hostId;
@@ -66,21 +69,31 @@ export function Lobby({ view, needsName, pending, onJoin, onStart, onLeave }: Pr
         (full ? (
           <p className="notice">This table is full.</p>
         ) : (
-          <JoinPanel needsName={needsName} pending={pending} onJoin={onJoin} />
+          <JoinPanel
+            needsName={needsName}
+            pending={pending}
+            joining={pendingAction === "join"}
+            onJoin={onJoin}
+          />
         ))}
 
       {isPlayer && (
         <div className="actions">
           {isHost ? (
-            <button type="button" className="button" onClick={onStart} disabled={pending}>
+            <Button onClick={onStart} disabled={pending} pending={pendingAction === "start"}>
               {view.players.length === 1 ? "Start solo game" : "Start game"}
-            </button>
+            </Button>
           ) : (
             <p className="notice">Waiting for the host to start the game.</p>
           )}
-          <button type="button" className="button-quiet" onClick={onLeave} disabled={pending}>
+          <Button
+            className="button-quiet"
+            onClick={onLeave}
+            disabled={pending}
+            pending={pendingAction === "leave"}
+          >
             Leave table
-          </button>
+          </Button>
         </div>
       )}
     </section>

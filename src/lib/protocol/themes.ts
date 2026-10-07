@@ -22,8 +22,28 @@ export function getTheme(id: string) {
   return THEMES.find((t) => t.id === id);
 }
 
-export function faceImageUrl(theme: string, face: number) {
-  return `/themes/${theme}/${face}.webp`;
+/** Faces per row of a theme sprite; scripts/slice-themes.mjs lays the sheet out the same way. */
+export const SPRITE_COLUMNS = 8;
+
+export function themeSpriteUrl(theme: string) {
+  return `/themes/${theme}/sprite.webp`;
+}
+
+/**
+ * Where a face sits in its theme's sprite sheet (faces are numbered from 1, row by row), as the
+ * CSS that shows just that cell.
+ */
+export function faceSprite(theme: string, face: number) {
+  const rows = Math.ceil((getTheme(theme)?.maxPairs ?? face) / SPRITE_COLUMNS);
+  const cell = face - 1;
+  const col = cell % SPRITE_COLUMNS;
+  const row = Math.floor(cell / SPRITE_COLUMNS);
+  const percent = (index: number, count: number) => (count > 1 ? (index / (count - 1)) * 100 : 0);
+  return {
+    backgroundImage: `url(${themeSpriteUrl(theme)})`,
+    backgroundSize: `${SPRITE_COLUMNS * 100}% ${rows * 100}%`,
+    backgroundPosition: `${percent(col, SPRITE_COLUMNS)}% ${percent(row, rows)}%`,
+  };
 }
 
 export function themePreviewUrl(theme: string) {

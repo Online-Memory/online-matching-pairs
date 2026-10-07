@@ -4,11 +4,12 @@ import { useState } from "react";
 
 import { loadGuestName, saveGuestName } from "@/lib/client/guest-name";
 
+import { Button } from "./Button";
 import { NameField } from "./NameField";
 
-type Props = { needsName: boolean; pending: boolean; onJoin: (name?: string) => void };
+type Props = { needsName: boolean; pending: boolean; joining: boolean; onJoin: (name?: string) => void };
 
-export function JoinPanel({ needsName, pending, onJoin }: Props) {
+export function JoinPanel({ needsName, pending, joining, onJoin }: Props) {
   const [name, setName] = useState(loadGuestName);
 
   return (
@@ -21,9 +22,9 @@ export function JoinPanel({ needsName, pending, onJoin }: Props) {
       }}
     >
       {needsName && <NameField id="join-name" value={name} onChange={setName} />}
-      <button type="submit" className="button" disabled={pending || (needsName && !name.trim())}>
+      <Button type="submit" disabled={pending || (needsName && !name.trim())} pending={joining}>
         Join table
-      </button>
+      </Button>
     </form>
   );
 }

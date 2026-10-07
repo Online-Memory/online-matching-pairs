@@ -35,13 +35,14 @@ describe("Board", () => {
       <Board tiles={tiles} theme="001" players={players} canFlip onFlip={() => {}} />,
     );
     const hidden = screen.getByRole("button", { name: "Tile 1, face down" });
-    expect(hidden.querySelector("img")).toBeNull();
+    expect(hidden.querySelector(".tile-face")).toBeNull();
     expect(hidden).not.toHaveAttribute("data-face");
-    expect(container.querySelectorAll("img")).toHaveLength(3);
-    expect(screen.getByRole("button", { name: "Tile 2, picture 7" }).querySelector("img")).toHaveAttribute(
-      "src",
-      "/themes/001/7.webp",
-    );
+    expect(container.querySelectorAll(".tile-face")).toHaveLength(3);
+    expect(container.querySelectorAll("img")).toHaveLength(0);
+    expect(
+      screen.getByRole("button", { name: "Tile 2, picture 7" }).querySelector<HTMLElement>(".tile-face")!
+        .style.backgroundImage,
+    ).toContain("/themes/001/sprite.webp");
     expect(screen.getByRole("button", { name: "Tile 3, picture 3, matched by Ann" })).toHaveAttribute(
       "data-seat",
       "0",

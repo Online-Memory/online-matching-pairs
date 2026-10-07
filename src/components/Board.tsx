@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 
 import { fitGrid, type GridFit } from "@/lib/client/fit-grid";
-import { boardColumns, type PlayerView, type TileView } from "@/lib/protocol";
+import { boardColumns, themeSpriteUrl, type PlayerView, type TileView } from "@/lib/protocol";
 
 import { Tile } from "./Tile";
 
@@ -27,6 +27,11 @@ export function Board({ tiles, theme, players, canFlip, celebrating, onFlip }: P
   const areaRef = useRef<HTMLDivElement>(null);
   const [fit, setFit] = useState<GridFit | null>(null);
   const count = tiles.length;
+
+  // The faces all come from one sprite sheet: fetch it up front so the first flip is instant.
+  useEffect(() => {
+    new Image().src = themeSpriteUrl(theme);
+  }, [theme]);
 
   // On wide screens the stylesheet sizes the area to the viewport and the grid fills it exactly,
   // so the whole board is always visible. Narrow screens ignore --fit-* and scroll instead.

@@ -64,7 +64,7 @@ To use a Neon dev branch, set `DATABASE_URL` and `DATABASE_URL_UNPOOLED` to the 
 | `pnpm test`                                    | Vitest: engine and property tests, TableService against Postgres, components        |
 | `pnpm build && pnpm test:e2e`                  | Playwright against `next start` (in-memory PGlite unless `E2E_DATABASE_URL` is set) |
 | `pnpm db:migrate`                              | `node-pg-migrate up` using `DATABASE_URL_UNPOOLED`                                  |
-| `pnpm themes:slice [dir]`                      | Rebuild `public/themes` from the old app's sprite sheets                            |
+| `pnpm themes:slice [dir]`                      | Rebuild `public/themes` (one sprite per theme) from the old app's sheets            |
 
 Integration tests use `TEST_DATABASE_URL` when it's set (CI's Postgres, or a Neon branch). Otherwise they use
 in-memory PGlite.

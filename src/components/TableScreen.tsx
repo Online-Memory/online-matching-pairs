@@ -9,6 +9,7 @@ import { useTable } from "@/lib/client/use-table";
 import type { PublicEvent, TableView } from "@/lib/protocol";
 
 import { Board } from "./Board";
+import { Button } from "./Button";
 import { CELEBRATION_MS, Confetti } from "./Confetti";
 import { FinishBanner } from "./FinishBanner";
 import { FlipBackBar } from "./FlipBackBar";
@@ -17,6 +18,7 @@ import { PauseBar } from "./PauseBar";
 import { Results } from "./Results";
 import { Scoreboard } from "./Scoreboard";
 import { Spotlight } from "./Spotlight";
+import { LoadingNotice } from "./Spinner";
 
 /** `autoJoin`: arrived by accepting a table invite, so seat a signed-in visitor without another click. */
 export function TableScreen({ code, autoJoin = false }: { code: string; autoJoin?: boolean }) {
@@ -75,27 +77,28 @@ export function TableScreen({ code, autoJoin = false }: { code: string; autoJoin
     view?.status === "playing" &&
     !view.pause &&
     view.lockUntil !== null &&
-    view.turn?.playerId === view.youId;
+    view.turn?.playerId === view.youId &&
+    !table.flippedBack;
   const dismissRef = useRef(table.dismiss);
   useEffect(() => {
     dismissRef.current = table.dismiss;
   });
-  // The click that follows a dismissing press must not also flip the tile under the cursor, even when
+  // The click that follows a dismissing release must not also flip the tile under the cursor, even when
   // the turn comes straight back to this player (solo game) and the tile is flippable again by then.
   const swallowClick = useRef(false);
   useEffect(() => {
     if (!canDismiss) return;
     let clearTimer: ReturnType<typeof setTimeout> | undefined;
-    const onPointerDown = (e: PointerEvent) => {
+    const onPointerUp = (e: PointerEvent) => {
       if (e.button !== 0) return;
       swallowClick.current = true;
       clearTimeout(clearTimer);
       clearTimer = setTimeout(() => (swallowClick.current = false), 1000);
       void dismissRef.current();
     };
-    window.addEventListener("pointerdown", onPointerDown);
+    window.addEventListener("pointerup", onPointerUp);
     // The swallow timer is left running on purpose: the click arrives after the dismiss ended the lock.
-    return () => window.removeEventListener("pointerdown", onPointerDown);
+    return () => window.removeEventListener("pointerup", onPointerUp);
   }, [canDismiss]);
   useEffect(() => {
     // Capture phase on window runs before React's handlers, so the tile never sees this click.
@@ -124,7 +127,11 @@ export function TableScreen({ code, autoJoin = false }: { code: string; autoJoin
   if (!view) {
     return (
       <main className="page page-narrow" aria-busy>
-        <p className="notice">{table.loadError ? table.loadError.message : `Opening table ${code}…`}</p>
+        {table.loadError ? (
+          <p className="notice">{table.loadError.message}</p>
+        ) : (
+          <LoadingNotice>Opening table {code}…</LoadingNotice>
+        )}
       </main>
     );
   }
@@ -142,24 +149,24 @@ export function TableScreen({ code, autoJoin = false }: { code: string; autoJoin
         Table <span data-testid="table-code-bar">{view.code}</span>
       </h1>
       {view.canPause && (
-        <button
-          type="button"
+        <Button
           className="button-quiet"
           onClick={() => void table.pause()}
           disabled={table.pending}
+          pending={table.pendingAction === "pause"}
         >
           Pause
-        </button>
+        </Button>
       )}
       {view.status === "playing" && you && you.status !== "left" && (
-        <button
-          type="button"
+        <Button
           className="button-quiet"
           onClick={() => void table.leave()}
           disabled={table.pending}
+          pending={table.pendingAction === "leave"}
         >
           Leave
-        </button>
+        </Button>
       )}
     </header>
   );
@@ -173,6 +180,7 @@ export function TableScreen({ code, autoJoin = false }: { code: string; autoJoin
           view={view}
           needsName={me !== null && !me.user}
           pending={table.pending}
+          pendingAction={table.pendingAction}
           onJoin={(name) => void table.join(name)}
           onStart={() => void table.start()}
           onLeave={() => void table.leave()}
@@ -204,14 +212,13 @@ export function TableScreen({ code, autoJoin = false }: { code: string; autoJoin
             {you?.status === "away" && view.status === "playing" && (
               <div className="away-banner">
                 <p>You missed three turns in a row, so your turns are being skipped.</p>
-                <button
-                  type="button"
-                  className="button"
+                <Button
                   onClick={() => void table.join()}
                   disabled={table.pending}
+                  pending={table.pendingAction === "join"}
                 >
                   I&apos;m back
-                </button>
+                </Button>
               </div>
             )}
             {view.status === "finished" && <Results view={view} />}

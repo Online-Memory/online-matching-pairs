@@ -4,9 +4,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { FriendsResponse, MeResponse } from "@/lib/protocol";
 
+import { setActiveTable } from "./active-table";
 import { api, ApiError } from "./api";
 import { useFriends, usePresence } from "./use-friends";
 import * as meModule from "./use-me";
+
+afterEach(() => setActiveTable(null));
 
 const empty: FriendsResponse = { handle: "al", friends: [], incoming: [], outgoing: [], invites: [] };
 const signedIn: MeResponse = {
@@ -97,6 +100,17 @@ describe("usePresence", () => {
     await waitFor(() => expect(spy).toHaveBeenCalledTimes(1));
     await act(() => vi.advanceTimersByTimeAsync(30_000));
     expect(spy).toHaveBeenCalledTimes(2);
+  });
+
+  it("reports the table we are seated at, and beats again as soon as it changes", async () => {
+    const spy = vi.spyOn(api, "heartbeat").mockResolvedValue({ handle: "al" });
+    renderHook(() => usePresence());
+    await waitFor(() => expect(spy).toHaveBeenLastCalledWith(null));
+    act(() => setActiveTable("ABC234"));
+    expect(spy).toHaveBeenLastCalledWith("ABC234");
+    act(() => setActiveTable(null));
+    expect(spy).toHaveBeenLastCalledWith(null);
+    expect(spy).toHaveBeenCalledTimes(3);
   });
 
   it("stays quiet for guests", async () => {

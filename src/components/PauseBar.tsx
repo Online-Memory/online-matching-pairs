@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 
 import type { TableView } from "@/lib/protocol";
 
+import { Button } from "./Button";
+
 type Props = { view: TableView; serverOffset: number; pending: boolean; onResume: () => void };
 
 /** Shown while the game is paused. The server resumes at `until`; this only renders the countdown. */
@@ -47,9 +49,9 @@ export function PauseBar({ view, serverOffset, pending, onResume }: Props) {
         />
       </div>
       {canResume && (
-        <button type="button" className="button" onClick={onResume} disabled={pending}>
+        <Button onClick={onResume} pending={pending}>
           Resume
-        </button>
+        </Button>
       )}
     </div>
   );

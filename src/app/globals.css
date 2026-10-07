@@ -224,6 +224,35 @@ a {
   cursor: not-allowed;
 }
 
+.spinner {
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  margin-right: 0.5em;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  vertical-align: -0.15em;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .spinner {
+    animation: spin 700ms linear infinite;
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.button[aria-busy="true"],
+.button-quiet[aria-busy="true"] {
+  opacity: 0.75;
+  cursor: progress;
+}
+
 .button-wide {
   width: 100%;
 }
@@ -275,6 +304,11 @@ a {
 
 .hint {
   color: var(--ink-soft);
+  font-size: 0.9375rem;
+}
+
+.you .hint {
+  color: var(--on-signal);
   font-size: 0.9375rem;
 }
 
@@ -548,6 +582,9 @@ a {
   border: 2px solid var(--line);
 }
 
+[data-seat="0"] {
+  --seat: var(--seat-0);
+}
 [data-seat="1"] {
   --seat: var(--seat-1);
 }
@@ -832,26 +869,55 @@ a {
 }
 
 .tile-face {
-  object-fit: cover;
+  object-fit: cover; /* the hero uses an <img> here */
   transform: rotateY(180deg);
-  background: var(--card);
+  background-color: var(--card);
+  background-repeat: no-repeat; /* the sprite image, size and position are set inline per face */
 }
 
 .tile[data-state="revealed"] .tile-face {
   box-shadow: 0 0 0 3px var(--signal);
 }
 
+/* Found pairs recede so the face-down tiles stay the focus; a small dot in the owner's colour says
+   whose pair it is. */
 .tile[data-state="matched"] .tile-face {
-  box-shadow: 0 0 0 3px var(--seat);
-  filter: saturate(0.85);
+  opacity: 0.9;
+  filter: saturate(0.6) brightness(0.8) contrast(0.8);
+}
+
+.tile[data-state="matched"] .tile-inner::after {
+  content: "";
+  position: absolute;
+  top: 6%;
+  left: 6%; /* mirrored by the 180° flip below, so this lands top-right on screen */
+  width: 0.65rem;
+  height: 0.65rem;
+  border-radius: 50%;
+  background: var(--seat);
+  box-shadow: 0 0 0 2px var(--card);
+  /* Sits on the face side, so it flips with the tile and is hidden while the tile is face down. */
+  transform: rotateY(180deg) translateZ(1px);
+  backface-visibility: hidden;
 }
 
 /* Pair found: the two tiles pop, a ring bursts out of each and sparkles fly off. Starts once the
    second tile has finished turning over. */
 @media (prefers-reduced-motion: no-preference) {
   .tile[data-celebrate="true"] {
+    --pop-duration: 900ms;
     z-index: 4;
-    animation: pair-pop 700ms var(--flip-duration) both;
+    animation: pair-pop var(--pop-duration) var(--flip-duration) both;
+  }
+
+  /* The dimmed look and owner dot only arrive once the pulse is over (the base matched rules above
+     apply immediately, e.g. on reload). */
+  .tile[data-celebrate="true"][data-state="matched"] .tile-face {
+    animation: pair-settle 400ms calc(var(--flip-duration) + var(--pop-duration)) both;
+  }
+
+  .tile[data-celebrate="true"][data-state="matched"] .tile-inner::after {
+    animation: pair-dot-in 400ms calc(var(--flip-duration) + var(--pop-duration)) both;
   }
 
   .tile[data-celebrate="true"]::before,
@@ -886,11 +952,30 @@ a {
   0% {
     transform: scale(1);
   }
-  35% {
+  25% {
     transform: scale(1.18);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+  75% {
+    transform: scale(1.14);
   }
   100% {
     transform: scale(1);
+  }
+}
+
+@keyframes pair-settle {
+  from {
+    opacity: 1;
+    filter: none;
+  }
+}
+
+@keyframes pair-dot-in {
+  from {
+    opacity: 0;
   }
 }
 
@@ -1087,11 +1172,11 @@ a {
     border: 3px solid var(--signal);
   }
 
-  .spotlight-slot img {
+  .spotlight-face {
     display: block;
     width: 100%;
     height: 100%;
-    object-fit: cover;
+    background-repeat: no-repeat;
   }
 
   /* Let a mouse user take a closer look at any face-up tile while the game is on. */
@@ -1233,6 +1318,79 @@ a {
   border-radius: var(--radius-control);
   background: var(--card);
   border: 2px solid var(--line);
+}
+
+.history[aria-busy="true"] {
+  opacity: 0.6;
+}
+
+.game-card {
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.game-rank {
+  min-width: 3.5rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: var(--radius-control);
+  border: 2px solid var(--line);
+  text-align: center;
+  font-weight: 700;
+}
+
+.game-rank-win {
+  border-color: currentColor;
+  color: var(--accent, inherit);
+}
+
+.game-main {
+  display: grid;
+  gap: 0.125rem;
+  min-width: 0;
+}
+
+.game-rating {
+  display: grid;
+  text-align: right;
+  font-weight: 700;
+}
+
+.game-rating small {
+  font-weight: 400;
+  color: var(--ink-soft);
+}
+
+.game-rating-up {
+  color: #1a7f45;
+}
+
+.game-rating-down {
+  color: #b3261e;
+}
+
+.pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin: 0 0 1.5rem;
+}
+
+@media (max-width: 480px) {
+  .game-card {
+    grid-template-columns: auto 1fr;
+  }
+
+  .game-rating {
+    grid-column: 1 / -1;
+    text-align: left;
+  }
+
+  .pager {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
 }
 
 /* ------------------------------------------------------------------ mobile */

@@ -6,6 +6,8 @@ import { api } from "@/lib/client/api";
 import { useMe } from "@/lib/client/use-me";
 import type { LeaderboardEntry, LeaderboardResponse, LeaderboardScope } from "@/lib/protocol";
 
+import { LoadingNotice } from "./Spinner";
+
 function Row({ entry, testId }: { entry: LeaderboardEntry; testId?: string }) {
   return (
     <tr className={entry.isYou ? "you" : undefined} data-testid={testId}>
@@ -67,7 +69,7 @@ export function Leaderboard() {
       {failed ? (
         <p role="alert">We couldn&apos;t load the leaderboard. Try again in a moment.</p>
       ) : board === null ? (
-        <p className="notice">Loading…</p>
+        <LoadingNotice>Loading the leaderboard…</LoadingNotice>
       ) : board.entries.length === 0 ? (
         <p>No rated games yet. Finish a game with another signed-in player to get on the board.</p>
       ) : (

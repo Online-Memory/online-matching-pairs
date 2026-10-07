@@ -5,13 +5,18 @@ import Link from "next/link";
 import { inviteHref } from "@/lib/client/invite-link";
 import type { InviteEntry } from "@/lib/protocol";
 
+import { Button } from "./Button";
+
 /** Table invites from friends, shared by the profile's friends panel and the home page notice. */
 export function InviteList({
   invites,
   onDismiss,
+  isDismissing = () => false,
 }: {
   invites: InviteEntry[];
   onDismiss: (id: string) => void;
+  /** Whether the dismissal of this invite is still waiting on the server. */
+  isDismissing?: (id: string) => boolean;
 }) {
   return (
     <ul className="friend-rows" aria-label="Table invites">
@@ -27,9 +32,9 @@ export function InviteList({
             <Link className="button" href={inviteHref(i.tableCode)}>
               Join {i.tableCode}
             </Link>
-            <button type="button" className="button-quiet" onClick={() => onDismiss(i.id)}>
+            <Button className="button-quiet" onClick={() => onDismiss(i.id)} pending={isDismissing(i.id)}>
               Dismiss
-            </button>
+            </Button>
           </span>
         </li>
       ))}

@@ -12,8 +12,8 @@ const seen = new Date().toISOString();
 const payload: FriendsResponse = {
   handle: "alice",
   friends: [
-    { userId: "b", handle: "bob", name: "Bob", online: true, lastSeenAt: seen },
-    { userId: "c", handle: "carol", name: "Carol", online: false, lastSeenAt: seen },
+    { userId: "b", handle: "bob", name: "Bob", online: true, inGame: false, lastSeenAt: seen },
+    { userId: "c", handle: "carol", name: "Carol", online: false, inGame: false, lastSeenAt: seen },
   ],
   incoming: [],
   outgoing: [],
@@ -42,12 +42,35 @@ describe("InviteFriends", () => {
     expect(screen.queryByText(/Carol/)).toBeNull();
   });
 
+  it("does not offer friends who are already in a game", async () => {
+    vi.spyOn(api, "friends").mockResolvedValue({
+      ...payload,
+      friends: [
+        { userId: "b", handle: "bob", name: "Bob", online: true, inGame: true, lastSeenAt: seen },
+        { userId: "d", handle: "dan", name: "Dan", online: true, inGame: false, lastSeenAt: seen },
+      ],
+    });
+    render(<InviteFriends code="ABC234" />);
+    expect(await screen.findByRole("button", { name: "Invite Dan (@dan)" })).toBeEnabled();
+    expect(screen.queryByText(/Bob/)).toBeNull();
+  });
+
+  it("hides the picker when every online friend is in a game", async () => {
+    vi.spyOn(api, "friends").mockResolvedValue({
+      ...payload,
+      friends: [{ userId: "b", handle: "bob", name: "Bob", online: true, inGame: true, lastSeenAt: seen }],
+    });
+    render(<InviteFriends code="ABC234" />);
+    await waitFor(() => expect(api.friends).toHaveBeenCalled());
+    expect(screen.queryByRole("region", { name: "Invite friends" })).toBeNull();
+  });
+
   it("tells same-named friends apart by handle", async () => {
     vi.spyOn(api, "friends").mockResolvedValue({
       ...payload,
       friends: [
-        { userId: "s1", handle: "sam_lee", name: "Sam", online: true, lastSeenAt: seen },
-        { userId: "s2", handle: "sam_ng", name: "Sam", online: true, lastSeenAt: seen },
+        { userId: "s1", handle: "sam_lee", name: "Sam", online: true, inGame: false, lastSeenAt: seen },
+        { userId: "s2", handle: "sam_ng", name: "Sam", online: true, inGame: false, lastSeenAt: seen },
       ],
     });
     render(<InviteFriends code="ABC234" />);

@@ -4,23 +4,29 @@ import { useState } from "react";
 
 import { api } from "@/lib/client/api";
 import { useFriends } from "@/lib/client/use-friends";
+import { usePending } from "@/lib/client/use-pending";
 
-/** Lobby picker: invite an online friend to this table. Hides itself for guests and when nobody is online. */
+import { Button } from "./Button";
+
+/** Lobby picker: invite an online friend to this table. Hides itself for guests and when nobody is free to invite. */
 export function InviteFriends({ code }: { code: string }) {
   const { data } = useFriends();
   const [invited, setInvited] = useState<ReadonlySet<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
-  const online = data?.friends.filter((f) => f.online) ?? [];
+  const pending = usePending();
+  const online = data?.friends.filter((f) => f.online && !f.inGame) ?? [];
   if (online.length === 0) return null;
 
   async function invite(userId: string) {
     setError(null);
-    try {
-      await api.inviteFriend(code, userId);
-      setInvited((prev) => new Set(prev).add(userId));
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Something went wrong");
-    }
+    await pending.run(userId, async () => {
+      try {
+        await api.inviteFriend(code, userId);
+        setInvited((prev) => new Set(prev).add(userId));
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Something went wrong");
+      }
+    });
   }
 
   return (
@@ -33,14 +39,14 @@ export function InviteFriends({ code }: { code: string }) {
             <span>
               {f.name} <small>@{f.handle}</small>
             </span>
-            <button
-              type="button"
+            <Button
               className="button-quiet"
               disabled={invited.has(f.userId)}
+              pending={pending.isPending(f.userId)}
               onClick={() => invite(f.userId)}
             >
               {invited.has(f.userId) ? "Invited" : `Invite ${f.name} (@${f.handle})`}
-            </button>
+            </Button>
           </li>
         ))}
       </ul>

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { joinRequestSchema, type SnapshotResponse } from "@/lib/protocol";
 import { getOrCreateViewer } from "@/server/auth";
+import { getFriendsService } from "@/server/friends";
 import { readJson, route, sinceParam, tableCode } from "@/server/http";
 import { getTableService } from "@/server/tables";
 
@@ -18,7 +19,10 @@ export const POST = route(async (request, context: Context) => {
     name: viewer.accountName ?? body.name ?? "",
   };
   const service = await getTableService();
-  return NextResponse.json<SnapshotResponse>(
-    await service.act(code, identity, { type: "join", identity }, sinceParam(request)),
-  );
+  const snapshot = await service.act(code, identity, { type: "join", identity }, sinceParam(request));
+  if (viewer.userId) {
+    // Best effort: a stale invite is a nuisance, not a reason to fail a join that already succeeded.
+    await (await getFriendsService()).clearInvitesForTable(viewer.userId, code).catch(() => {});
+  }
+  return NextResponse.json<SnapshotResponse>(snapshot);
 });

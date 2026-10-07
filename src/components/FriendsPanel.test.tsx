@@ -21,9 +21,17 @@ const payload: FriendsResponse = {
       handle: "carol",
       name: "Carol",
       online: false,
+      inGame: false,
       lastSeenAt: new Date(Date.now() - 3_600_000).toISOString(),
     },
-    { userId: "b", handle: "bob", name: "Bob", online: true, lastSeenAt: new Date().toISOString() },
+    {
+      userId: "b",
+      handle: "bob",
+      name: "Bob",
+      online: true,
+      inGame: false,
+      lastSeenAt: new Date().toISOString(),
+    },
   ],
   incoming: [{ userId: "d", handle: "dave", name: "Dave" }],
   outgoing: [],
@@ -67,8 +75,22 @@ describe("FriendsPanel", () => {
     vi.spyOn(api, "friends").mockResolvedValue({
       ...payload,
       friends: [
-        { userId: "s1", handle: "sam_lee", name: "Sam", online: true, lastSeenAt: new Date().toISOString() },
-        { userId: "s2", handle: "sam_ng", name: "Sam", online: true, lastSeenAt: new Date().toISOString() },
+        {
+          userId: "s1",
+          handle: "sam_lee",
+          name: "Sam",
+          online: true,
+          inGame: false,
+          lastSeenAt: new Date().toISOString(),
+        },
+        {
+          userId: "s2",
+          handle: "sam_ng",
+          name: "Sam",
+          online: true,
+          inGame: false,
+          lastSeenAt: new Date().toISOString(),
+        },
       ],
     });
     render(<FriendsPanel />);

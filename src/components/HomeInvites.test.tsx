@@ -10,7 +10,16 @@ import { HomeInvites } from "./HomeInvites";
 
 const withInvite: FriendsResponse = {
   handle: "alice",
-  friends: [{ userId: "b", handle: "bob", name: "Bob", online: true, lastSeenAt: new Date().toISOString() }],
+  friends: [
+    {
+      userId: "b",
+      handle: "bob",
+      name: "Bob",
+      online: true,
+      inGame: false,
+      lastSeenAt: new Date().toISOString(),
+    },
+  ],
   incoming: [{ userId: "d", handle: "dave", name: "Dave" }],
   outgoing: [],
   invites: [

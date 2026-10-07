@@ -5,6 +5,7 @@ import { useEffect, useSyncExternalStore } from "react";
 import type { FriendsResponse } from "@/lib/protocol";
 
 import { api } from "./api";
+import { getActiveTable, onActiveTableChange } from "./active-table";
 import { useMe } from "./use-me";
 
 const POLL_MS = 5_000;
@@ -76,12 +77,14 @@ export function usePresence() {
   useEffect(() => {
     if (!signedIn) return;
     const beat = () => {
-      if (document.visibilityState === "visible") api.heartbeat().catch(() => {});
+      if (document.visibilityState === "visible") api.heartbeat(getActiveTable()).catch(() => {});
     };
     beat();
     const id = setInterval(beat, BEAT_MS);
     document.addEventListener("visibilitychange", beat);
+    const stopListening = onActiveTableChange(beat);
     return () => {
+      stopListening();
       clearInterval(id);
       document.removeEventListener("visibilitychange", beat);
     };

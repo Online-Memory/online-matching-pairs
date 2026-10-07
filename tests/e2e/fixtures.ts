@@ -15,7 +15,6 @@ type Capture = {
   responses: unknown[];
   problems: string[];
   revealedFaces: Set<number>;
-  requestedFaces: Set<number>;
 };
 
 export type Player = { name: string; page: Page; context: BrowserContext };
@@ -61,7 +60,6 @@ async function createPlayer(browser: Browser, name: string, mobile: boolean) {
     responses: [],
     problems: [],
     revealedFaces: new Set(),
-    requestedFaces: new Set(),
   };
 
   page.on("response", async (response) => {
@@ -70,14 +68,6 @@ async function createPlayer(browser: Browser, name: string, mobile: boolean) {
     if (!body || "error" in body || !("unchanged" in body)) return; // e.g. create returns just {code}
     capture.responses.push(body);
     for (const problem of inspect(body, capture.revealedFaces)) capture.problems.push(problem);
-  });
-
-  page.on("request", (request) => {
-    const match = new URL(request.url()).pathname.match(/^\/themes\/\d{3}\/(\d+)\.webp$/);
-    // The home page hero shows a few fixed decorative faces; only table pages are checked.
-    if (!match || !page.url().includes("/table/")) return;
-    // Checked at the end: the response listener parses bodies asynchronously, so ordering here is racy.
-    capture.requestedFaces.add(Number(match[1]));
   });
 
   return { player: { name, page, context }, capture };
@@ -121,17 +111,16 @@ function walk(
 }
 
 async function scanDom(page: Page, capture: Capture) {
-  for (const face of capture.requestedFaces) {
-    if (!capture.revealedFaces.has(face))
-      capture.problems.push(`requested image for never-revealed face ${face}`);
-  }
   if (page.isClosed() || !page.url().includes("/table/")) return;
   const leaks = await page
     .locator('.tile[data-state="hidden"]')
     .evaluateAll((tiles) =>
       tiles
         .filter(
-          (t) => t.querySelector("img") || t.hasAttribute("data-face") || /picture/i.test(t.ariaLabel ?? ""),
+          (t) =>
+            t.querySelector("img, .tile-face") ||
+            t.hasAttribute("data-face") ||
+            /picture/i.test(t.ariaLabel ?? ""),
         )
         .map((t) => t.getAttribute("data-tile-id")),
     );

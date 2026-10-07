@@ -22,6 +22,8 @@ export const MAX_PLAYERS = 12;
 export const maxPlayersFor = (signedIn: boolean) => (signedIn ? MAX_PLAYERS : GUEST_MAX_PLAYERS);
 /** How long a mismatched pair stays face up unless its player flips it back sooner. */
 export const MISMATCH_LOCK_MS = 5_000;
+/** A dismissal is ignored until the pair has been face up this long, so a 1s poll always sees it. */
+export const MIN_REVEAL_MS = 1_500;
 export const TURN_SECONDS_OPTIONS = [10, 15, 20, 30, 45, 60] as const;
 
 export const displayNameSchema = z
@@ -221,6 +223,8 @@ export type HistoryEntry = {
   players: { name: string; pairs: number; rank: number | null; isYou: boolean }[];
 };
 
+export type HistoryPage = { entries: HistoryEntry[]; total: number; page: number; pageSize: number };
+
 export type LeaderboardEntry = {
   rank: number;
   /** Null for a player who has no profile yet. */
@@ -267,6 +271,8 @@ export const handleSchema = z
 
 export const friendRequestSchema = z.object({ handle: handleSchema });
 export const setHandleSchema = z.object({ handle: handleSchema });
+/** The heartbeat body. `tableCode` is the table the browser is seated at; null says "none", absent leaves it as is. */
+export const presenceRequestSchema = z.object({ tableCode: codeSchema.nullable().optional() });
 export const inviteRequestSchema = z.object({ userId: z.string().min(1).max(200) });
 
 export type FriendEntry = {
@@ -274,6 +280,8 @@ export type FriendEntry = {
   handle: string;
   name: string;
   online: boolean;
+  /** Online and reporting a lobby or game they are seated at. Self-reported by their browser, so only fit for UI. */
+  inGame: boolean;
   lastSeenAt: string;
 };
 export type FriendRequestEntry = { userId: string; handle: string; name: string };

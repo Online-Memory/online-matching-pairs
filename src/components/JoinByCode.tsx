@@ -1,13 +1,16 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, useTransition } from "react";
 
 import { CODE_ALPHABET, CODE_LENGTH } from "@/lib/protocol";
+
+import { Button } from "./Button";
 
 export function JoinByCode() {
   const router = useRouter();
   const [code, setCode] = useState("");
+  const [opening, startOpening] = useTransition();
   const valid = new RegExp(`^[${CODE_ALPHABET}]{${CODE_LENGTH}}$`).test(code);
 
   return (
@@ -15,7 +18,7 @@ export function JoinByCode() {
       className="join-code"
       onSubmit={(e) => {
         e.preventDefault();
-        if (valid) router.push(`/table/${code}`);
+        if (valid && !opening) startOpening(() => router.push(`/table/${code}`));
       }}
     >
       <h2>Join friends</h2>
@@ -39,9 +42,9 @@ export function JoinByCode() {
           inputMode="text"
         />
       </div>
-      <button type="submit" className="button" disabled={!valid}>
+      <Button type="submit" disabled={!valid} pending={opening}>
         Open table
-      </button>
+      </Button>
     </form>
   );
 }

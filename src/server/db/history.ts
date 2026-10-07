@@ -27,7 +27,11 @@ const historyRowSchema = z.object({
 });
 
 /** Finished games for a signed-in user. Reads only public tables, never `table_state`. */
-export async function listHistory(db: Db, userId: string, limit = 20): Promise<HistoryEntry[]> {
+export async function listHistory(
+  db: Db,
+  userId: string,
+  { limit = 20, offset = 0 }: { limit?: number; offset?: number } = {},
+): Promise<HistoryEntry[]> {
   const rows = await db.query(
     `SELECT g.code, g.theme, g.pairs, g.finished_at,
             (SELECT jsonb_agg(jsonb_build_object(
@@ -40,8 +44,8 @@ export async function listHistory(db: Db, userId: string, limit = 20): Promise<H
        JOIN games g ON g.id = me.game_id
       WHERE me.user_id = $1 AND g.status = 'finished'
       ORDER BY g.finished_at DESC
-      LIMIT $2`,
-    [userId, limit],
+      LIMIT $2 OFFSET $3`,
+    [userId, limit, offset],
   );
 
   return rows.map((raw) => {
@@ -68,4 +72,16 @@ export async function listHistory(db: Db, userId: string, limit = 20): Promise<H
       })),
     };
   });
+}
+
+/** How many finished games `listHistory` can page through for this user. */
+export async function countHistory(db: Db, userId: string): Promise<number> {
+  const [row] = await db.query<{ total: number | string }>(
+    `SELECT count(*) AS total
+       FROM game_players me
+       JOIN games g ON g.id = me.game_id
+      WHERE me.user_id = $1 AND g.status = 'finished'`,
+    [userId],
+  );
+  return Number(row?.total ?? 0);
 }

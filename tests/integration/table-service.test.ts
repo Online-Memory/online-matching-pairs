@@ -2,7 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import type { PollResponse, SnapshotResponse, TableView } from "@/lib/protocol";
 import type { Db } from "@/server/db";
-import { listHistory } from "@/server/db/history";
+import { countHistory, listHistory } from "@/server/db/history";
 import { cleanupTables, loadTable } from "@/server/db/tables";
 import { seededRng, type Identity } from "@/server/engine";
 import { ServiceError, TableService } from "@/server/tables/service";
@@ -222,6 +222,9 @@ describe("TableService", () => {
     expect(history[0]).toMatchObject({ code, you: { pairs: 8, moves: 8, rank: 1, bestStreak: 8 } });
     expect(history[0]!.players.map((p) => p.name)).toEqual(["Alice", "Bob"]);
     expect(await listHistory(db, "nobody")).toEqual([]);
+    expect(await countHistory(db, "alice")).toBe(1);
+    expect(await countHistory(db, "nobody")).toBe(0);
+    expect(await listHistory(db, "alice", { limit: 10, offset: 1 })).toEqual([]);
   });
 
   it("daily cleanup abandons stale tables and drops their secret state", async () => {

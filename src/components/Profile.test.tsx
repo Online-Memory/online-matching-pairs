@@ -11,7 +11,7 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn(), refresh: 
 vi.mock("@/lib/client/auth-client", () => ({ authClient: { signOut: vi.fn() } }));
 
 beforeEach(() => {
-  vi.spyOn(api, "history").mockResolvedValue([]);
+  vi.spyOn(api, "historyPage").mockResolvedValue({ entries: [], total: 0, page: 1, pageSize: 10 });
   vi.spyOn(api, "stats").mockResolvedValue({
     games: 0,
     versusGames: 0,

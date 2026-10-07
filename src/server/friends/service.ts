@@ -46,18 +46,23 @@ export class FriendsService {
     this.seating = options.seating;
   }
 
-  /** Heartbeat: creates the profile on first use, refreshes the name and `last_seen_at`. Returns the handle. */
-  async touch(account: Account): Promise<string> {
+  /**
+   * Heartbeat: creates the profile on first use, refreshes the name and `last_seen_at`. Returns the handle.
+   * `tableCode` is the table the player is seated at (null: none); leave it out to keep what they last reported.
+   */
+  async touch(account: Account, tableCode?: string | null): Promise<string> {
     const base = handleBase(account.name);
     for (let attempt = 0; attempt < MAX_HANDLE_ATTEMPTS; attempt++) {
       const handle = attempt === 0 ? base : `${base}${randomInt(100, 10_000)}`;
       try {
         const rows = await this.db.query<{ handle: string }>(
-          `INSERT INTO profiles (user_id, handle, display_name, last_seen_at)
-           VALUES ($1, $2, $3, $4::timestamptz)
-           ON CONFLICT (user_id) DO UPDATE SET display_name = $3, last_seen_at = $4::timestamptz
+          `INSERT INTO profiles (user_id, handle, display_name, last_seen_at, current_table_code)
+           VALUES ($1, $2, $3, $4::timestamptz, $5::text)
+           ON CONFLICT (user_id) DO UPDATE
+              SET display_name = $3, last_seen_at = $4::timestamptz,
+                  current_table_code = CASE WHEN $6::boolean THEN $5::text ELSE profiles.current_table_code END
            RETURNING handle`,
-          [account.id, handle, account.name, iso(this.clock())],
+          [account.id, handle, account.name, iso(this.clock()), tableCode ?? null, tableCode !== undefined],
         );
         return rows[0]!.handle;
       } catch (error) {
@@ -157,13 +162,14 @@ export class FriendsService {
       handle: string;
       display_name: string;
       last_seen_at: Date | string;
+      current_table_code: string | null;
       status: string;
       requested_by: string;
     };
     const [mine, rows, invites] = await Promise.all([
       this.db.query<{ handle: string }>(`SELECT handle FROM profiles WHERE user_id = $1`, [userId]),
       this.db.query<Row>(
-        `SELECT p.user_id, p.handle, p.display_name, p.last_seen_at, f.status, f.requested_by
+        `SELECT p.user_id, p.handle, p.display_name, p.last_seen_at, p.current_table_code, f.status, f.requested_by
            FROM friendships f
            JOIN profiles p ON p.user_id = CASE WHEN f.user_a = $1 THEN f.user_b ELSE f.user_a END
           WHERE f.user_a = $1 OR f.user_b = $1
@@ -202,9 +208,11 @@ export class FriendsService {
       const person = { userId: r.user_id, handle: r.handle, name: r.display_name };
       if (r.status === "accepted") {
         const seen = new Date(r.last_seen_at).getTime();
+        const online = now - seen < ONLINE_WINDOW_MS;
         response.friends.push({
           ...person,
-          online: now - seen < ONLINE_WINDOW_MS,
+          online,
+          inGame: online && r.current_table_code !== null,
           lastSeenAt: new Date(seen).toISOString(),
         });
       } else if (r.requested_by === userId) {
@@ -252,6 +260,11 @@ export class FriendsService {
 
   async dismissInvite(userId: string, inviteId: string): Promise<void> {
     await this.db.query(`DELETE FROM table_invites WHERE id = $1 AND to_user = $2`, [inviteId, userId]);
+  }
+
+  /** The invitee took the seat, so the invite has done its job. Idempotent. */
+  async clearInvitesForTable(userId: string, code: string): Promise<void> {
+    await this.db.query(`DELETE FROM table_invites WHERE to_user = $1 AND table_code = $2`, [userId, code]);
   }
 
   /** Daily sweep: expired invites are already hidden on read, this just frees the rows. */

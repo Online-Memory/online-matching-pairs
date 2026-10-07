@@ -7,25 +7,26 @@ import { useEffect, useState } from "react";
 import { api } from "@/lib/client/api";
 import { authClient } from "@/lib/client/auth-client";
 import { invalidateMe, useMe } from "@/lib/client/use-me";
-import { getTheme, type HistoryEntry, type StatsResponse } from "@/lib/protocol";
+import type { StatsResponse } from "@/lib/protocol";
 
+import { Button } from "./Button";
+import { FinishedGames } from "./FinishedGames";
 import { FriendsPanel } from "./FriendsPanel";
-import { ordinal } from "./Scoreboard";
+import { LoadingNotice } from "./Spinner";
 import { StatsPanel } from "./StatsPanel";
 
 export function Profile() {
   const me = useMe();
   const router = useRouter();
-  const [history, setHistory] = useState<HistoryEntry[] | null>(null);
-  const [stats, setStats] = useState<StatsResponse | null>(null);
+  const [stats, setStats] = useState<StatsResponse | null | undefined>(undefined); // undefined: still loading
+  const [signingOut, setSigningOut] = useState(false);
 
   useEffect(() => {
     if (!me?.user) return;
-    api.history().then(setHistory, () => setHistory([]));
     api.stats().then(setStats, () => setStats(null));
   }, [me?.user]);
 
-  if (!me) return <p className="notice">Loading…</p>;
+  if (!me) return <LoadingNotice />;
   if (!me.user) {
     return (
       <>
@@ -42,51 +43,30 @@ export function Profile() {
     <>
       <h1>{me.user.name}</h1>
       {me.user.email && <p className="hint">{me.user.email}</p>}
-      {stats && <StatsPanel stats={stats} />}
-      <FriendsPanel />
-      <h2>Finished games</h2>
-      {history === null ? (
-        <p className="notice">Loading…</p>
-      ) : history.length === 0 ? (
-        <p>
-          No finished games yet. <Link href="/">Set up a table</Link> and play one to the end.
-        </p>
+      {stats === undefined ? (
+        <LoadingNotice>Loading your record…</LoadingNotice>
       ) : (
-        <ul className="history" data-testid="history">
-          {history.map((game) => (
-            <li key={game.code + game.finishedAt}>
-              <strong>{game.you.rank ? ordinal(game.you.rank) : "Played"}</strong>
-              <span>
-                {getTheme(game.theme)?.name ?? game.theme}, {game.pairs * 2} tiles
-              </span>
-              <span>
-                {game.you.pairs} pairs in {game.you.moves} moves
-              </span>
-              {game.you.ratingBefore !== null && game.you.ratingAfter !== null && (
-                <span>
-                  Rating {game.you.ratingBefore} → {game.you.ratingAfter}
-                </span>
-              )}
-              <span className="hint">
-                {game.players.map((p) => (p.isYou ? "you" : p.name)).join(", ")} on{" "}
-                {new Date(game.finishedAt).toLocaleDateString()}
-              </span>
-            </li>
-          ))}
-        </ul>
+        stats && <StatsPanel stats={stats} />
       )}
-      <button
-        type="button"
+      <FriendsPanel />
+      <FinishedGames />
+      <Button
         className="button-quiet"
+        pending={signingOut}
         onClick={async () => {
-          await authClient.signOut();
-          invalidateMe();
-          router.push("/");
-          router.refresh();
+          setSigningOut(true);
+          try {
+            await authClient.signOut();
+            invalidateMe();
+            router.push("/");
+            router.refresh();
+          } catch {
+            setSigningOut(false);
+          }
         }}
       >
         Sign out
-      </button>
+      </Button>
     </>
   );
 }

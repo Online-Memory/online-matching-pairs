@@ -6,6 +6,8 @@ import { timeAgo } from "@/lib/client/time-ago";
 import { usePublicTables } from "@/lib/client/use-public-tables";
 import { THEMES } from "@/lib/protocol";
 
+import { LoadingNotice } from "./Spinner";
+
 /** Home page directory of public tables. Open lobbies can be joined; everything else can be watched. */
 export function PublicTables() {
   const { tables, error } = usePublicTables();
@@ -15,7 +17,11 @@ export function PublicTables() {
     <section className="friends-card public-tables" aria-labelledby="public-heading">
       <h2 id="public-heading">Public tables</h2>
       {tables === null ? (
-        <p className="hint">{error ?? "Loading…"}</p>
+        error ? (
+          <p className="hint">{error}</p>
+        ) : (
+          <LoadingNotice>Loading public tables…</LoadingNotice>
+        )
       ) : tables.length === 0 ? (
         <p className="hint">No public tables right now.</p>
       ) : (

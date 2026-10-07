@@ -17,6 +17,7 @@ import {
   type ThemeId,
 } from "@/lib/protocol";
 
+import { Button } from "./Button";
 import { NameField } from "./NameField";
 
 export function CreateTableForm() {
@@ -41,6 +42,7 @@ export function CreateTableForm() {
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    if (pending) return;
     setPending(true);
     setError(null);
     try {
@@ -156,13 +158,9 @@ export function CreateTableForm() {
           {error}
         </p>
       )}
-      <button
-        type="submit"
-        className="button"
-        disabled={pending || me === null || (needsName && !name.trim())}
-      >
+      <Button type="submit" disabled={me === null || (needsName && !name.trim())} pending={pending}>
         {pending ? "Creating…" : "Create table"}
-      </button>
+      </Button>
     </form>
   );
 }

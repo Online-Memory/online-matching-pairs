@@ -79,6 +79,39 @@ describe("presence", () => {
   });
 });
 
+describe("in a game", () => {
+  async function befriended() {
+    await friends.touch(alice);
+    const bobHandle = await friends.touch(bob);
+    await friends.request(alice, bobHandle);
+    await friends.accept(bob, alice.id);
+  }
+  const aliceAsSeenByBob = async () => (await friends.list(bob.id)).friends[0];
+
+  it("shows a friend as in a game while they report a table, and not after they clear it", async () => {
+    await befriended();
+    expect(await aliceAsSeenByBob()).toMatchObject({ online: true, inGame: false });
+    await friends.touch(alice, "ABC234");
+    expect(await aliceAsSeenByBob()).toMatchObject({ online: true, inGame: true });
+    await friends.touch(alice, null);
+    expect(await aliceAsSeenByBob()).toMatchObject({ inGame: false });
+  });
+
+  it("is not in a game once the heartbeat goes stale", async () => {
+    await befriended();
+    await friends.touch(alice, "ABC234");
+    now += ONLINE_WINDOW_MS + 1;
+    expect(await aliceAsSeenByBob()).toMatchObject({ online: false, inGame: false });
+  });
+
+  it("keeps the reported table when other actions touch the profile", async () => {
+    await befriended();
+    await friends.touch(alice, "ABC234");
+    await friends.touch(alice);
+    expect(await aliceAsSeenByBob()).toMatchObject({ inGame: true });
+  });
+});
+
 describe("overview", () => {
   it("creates the profile so a brand-new account sees its handle straight away", async () => {
     const overview = await friends.overview(alice);
@@ -188,6 +221,15 @@ describe("invites", () => {
     expect(invite).toMatchObject({ tableCode: code, fromName: "Alice" });
     expect(Object.keys(invite!).sort()).toEqual(["expiresAt", "fromHandle", "fromName", "id", "tableCode"]);
     await friends.dismissInvite(bob.id, invite!.id);
+    expect((await friends.list(bob.id)).invites).toEqual([]);
+  });
+
+  it("clearing a table's invites leaves other tables' invites alone", async () => {
+    const code = await lobbyWithFriends();
+    await friends.invite(alice, code, bob.id);
+    await friends.clearInvitesForTable(bob.id, "OTHER1");
+    expect((await friends.list(bob.id)).invites).toHaveLength(1);
+    await friends.clearInvitesForTable(bob.id, code);
     expect((await friends.list(bob.id)).invites).toEqual([]);
   });
 

@@ -18,11 +18,7 @@ export function SiteHeader() {
           {me?.authEnabled && (
             <>
               <Link href="/leaderboard">Leaderboard</Link>
-              {me.user ? (
-                <Link href="/profile">{me.user.name}</Link>
-              ) : (
-                <Link href="/auth/sign-in">Sign in</Link>
-              )}
+              {me.user ? <Link href="/profile">My Profile</Link> : <Link href="/auth/sign-in">Sign in</Link>}
             </>
           )}
         </nav>
