@@ -21,6 +21,13 @@ beforeEach(() => {
     accuracy: null,
     rating: null,
   });
+  vi.spyOn(api, "progress").mockResolvedValue({
+    xp: 150,
+    level: 2,
+    xpIntoLevel: 50,
+    xpForNext: 200,
+    achievements: [{ id: "first_game", earnedAt: "2026-10-07T12:00:00.000Z" }],
+  });
   vi.spyOn(api, "friends").mockResolvedValue({
     handle: "alice",
     friends: [],
@@ -66,6 +73,41 @@ describe("Profile", () => {
     render(<Profile />);
     expect(await screen.findByRole("heading", { name: "Friends" })).toBeInTheDocument();
     expect(screen.queryByTestId("stats")).not.toBeInTheDocument();
+  });
+
+  it("shows the level bar, and still renders when progress fails to load", async () => {
+    vi.spyOn(meModule, "useMe").mockReturnValue({
+      authEnabled: true,
+      user: { id: "a", name: "Alice", email: "a@example.com", image: null },
+    });
+    const { unmount } = render(<Profile />);
+    expect(await screen.findByText("Level 2")).toBeInTheDocument();
+    unmount();
+
+    vi.spyOn(api, "progress").mockRejectedValue(new Error("boom"));
+    render(<Profile />);
+    expect(await screen.findByRole("heading", { name: "Friends" })).toBeInTheDocument();
+    expect(screen.queryByText(/^Level /)).toBeNull();
+  });
+
+  it("shows the achievements panel for a signed-in user", async () => {
+    vi.spyOn(meModule, "useMe").mockReturnValue({
+      authEnabled: true,
+      user: { id: "a", name: "Alice", email: "a@example.com", image: null },
+    });
+    render(<Profile />);
+    expect(await screen.findByRole("heading", { name: "Achievements" })).toBeInTheDocument();
+    expect(screen.getByText("1 of 7 earned")).toBeInTheDocument();
+  });
+
+  it("copes with an older server that sends no achievements", async () => {
+    vi.spyOn(api, "progress").mockResolvedValue({ xp: 0, level: 1, xpIntoLevel: 0, xpForNext: 100 });
+    vi.spyOn(meModule, "useMe").mockReturnValue({
+      authEnabled: true,
+      user: { id: "a", name: "Alice", email: "a@example.com", image: null },
+    });
+    render(<Profile />);
+    expect(await screen.findByText("0 of 7 earned")).toBeInTheDocument();
   });
 
   it("has no friends for a guest", () => {

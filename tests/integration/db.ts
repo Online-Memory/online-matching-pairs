@@ -36,7 +36,7 @@ export async function createTestDb(): Promise<Db & { close(): Promise<void>; res
         (await pool.query(text, params)).rows as Row[],
       reset: async () =>
         void (await pool.query(
-          "TRUNCATE games, profiles, friendships, table_invites, player_ratings CASCADE",
+          "TRUNCATE games, profiles, friendships, table_invites, player_ratings, player_progress, player_achievements CASCADE",
         )),
       close: async () => {
         await pool.end();
@@ -54,7 +54,7 @@ export async function createTestDb(): Promise<Db & { close(): Promise<void>; res
     query: async <Row>(text: string, params: unknown[] = []) => (await pglite.query<Row>(text, params)).rows,
     reset: async () =>
       void (await pglite.exec(
-        "TRUNCATE games, profiles, friendships, table_invites, player_ratings CASCADE",
+        "TRUNCATE games, profiles, friendships, table_invites, player_ratings, player_progress, player_achievements CASCADE",
       )),
     close: () => pglite.close(),
   };

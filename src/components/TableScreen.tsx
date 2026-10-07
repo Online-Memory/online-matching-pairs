@@ -105,7 +105,8 @@ export function TableScreen({ code, autoJoin = false }: { code: string; autoJoin
   }, [table.events]);
   useEffect(() => {
     if (!matchFx) return;
-    const id = setTimeout(() => setMatchFx(null), 1500);
+    // Longer than the CSS animation (flip delay + 2.2s) so the pop-up is never cut off mid-fade.
+    const id = setTimeout(() => setMatchFx(null), 3000);
     return () => clearTimeout(id);
   }, [matchFx]);
 

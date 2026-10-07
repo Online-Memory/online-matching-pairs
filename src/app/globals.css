@@ -1132,10 +1132,14 @@ a {
   white-space: nowrap;
   font-size: 1.5rem;
   font-weight: 900;
-  color: var(--streak-color, #ffc93c);
-  text-shadow:
-    0 2px 0 rgb(0 0 0 / 0.35),
-    0 0 12px rgb(0 0 0 / 0.25);
+  /* A solid dark pill with white text reads on any tile picture or theme; the tier colour is the
+     border, not the text. */
+  padding: 0.35rem 1rem;
+  border-radius: 999px;
+  color: #fff;
+  background: rgb(20 16 8 / 0.94);
+  border: 3px solid var(--streak-color, #ffc93c);
+  box-shadow: 0 6px 20px rgb(0 0 0 / 0.5);
 }
 .score-popup[data-tier="warm"] {
   --streak-color: #ffc93c;
@@ -1152,22 +1156,30 @@ a {
 @media (prefers-reduced-motion: no-preference) {
   .score-popup {
     display: block;
-    animation: score-popup-rise 1000ms ease-out var(--flip-duration) both;
+    animation: score-popup-rise 2200ms ease-out var(--flip-duration) both;
   }
 }
 
+/* Pops in, then hangs still for about a second and a half so it can be read, then drifts up and fades. */
 @keyframes score-popup-rise {
   0% {
     opacity: 0;
     transform: translate(-50%, -30%) scale(0.6);
   }
-  15% {
+  10% {
     opacity: 1;
-    transform: translate(-50%, -60%) scale(1.15);
+    transform: translate(-50%, -70%) scale(1.15);
+  }
+  18% {
+    transform: translate(-50%, -70%) scale(1);
+  }
+  78% {
+    opacity: 1;
+    transform: translate(-50%, -80%) scale(1);
   }
   100% {
     opacity: 0;
-    transform: translate(-50%, -260%) scale(1);
+    transform: translate(-50%, -140%) scale(1);
   }
 }
 
@@ -2159,5 +2171,103 @@ a {
   from {
     opacity: 0;
     transform: scale(0.6);
+  }
+}
+
+/* -------------------------------------------------------------- xp and levels */
+
+.xp-gain {
+  margin: 0.25rem 0;
+  font-weight: 800;
+}
+
+.level-up {
+  margin: 0.25rem 0 0.75rem;
+  font-size: 1.125rem;
+  font-weight: 800;
+}
+
+.level-bar {
+  margin: 0 0 1rem;
+  max-width: 24rem;
+}
+.level-bar-title {
+  margin: 0 0 0.25rem;
+  font-size: 1.25rem;
+  font-weight: 800;
+}
+.level-bar-track {
+  height: 0.75rem;
+  border-radius: 999px;
+  background: var(--line);
+  overflow: hidden;
+}
+.level-bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--signal);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .level-up {
+    animation: promotion-in 500ms cubic-bezier(0.2, 0.9, 0.3, 1.4) 800ms both;
+  }
+  .level-bar-fill {
+    transition: width 600ms ease-out;
+  }
+}
+
+/* ------------------------------------------------------------- achievements */
+
+.achievement-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+  margin: 0 0 0.75rem;
+  padding: 0;
+  list-style: none;
+}
+.achievement-chips li {
+  padding: 0.1rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.8125rem;
+  font-weight: 800;
+  color: #1b1200;
+  background: #ffc93c;
+}
+
+.achievement-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.achievement {
+  display: grid;
+  gap: 0.125rem;
+  padding: 0.625rem 0.75rem;
+  border-radius: var(--radius-control);
+  border: 2px solid var(--line);
+  background: var(--card);
+}
+.achievement[data-earned="true"] {
+  border-color: #ffc93c;
+}
+.achievement[data-earned="false"] {
+  opacity: 0.6;
+}
+.achievement-title {
+  font-weight: 800;
+}
+.achievement-desc {
+  font-size: 0.875rem;
+  color: var(--ink-soft);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .achievement-chips li {
+    animation: award-pop 400ms ease-out 1000ms both;
   }
 }

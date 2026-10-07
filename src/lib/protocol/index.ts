@@ -230,6 +230,11 @@ export type HistoryEntry = {
     /** Null until the game is rated, and for games that are never rated. */
     ratingBefore: number | null;
     ratingAfter: number | null;
+    /** XP this game paid and the player's XP afterwards. Null until awarded; absent from an older server. */
+    xpGained?: number | null;
+    xpAfter?: number | null;
+    /** Ids of the achievements this game earned. Absent from an older server. */
+    achievements?: string[];
   };
   players: { name: string; pairs: number; rank: number | null; isYou: boolean }[];
 };
@@ -266,6 +271,16 @@ export type StatsResponse = {
   /** Pairs per move, 0 to 1. */
   accuracy: number | null;
   rating: { value: number; ratedGames: number; rank: number } | null;
+};
+
+export type ProgressResponse = {
+  xp: number;
+  level: number;
+  /** XP earned inside the current level, and how wide the level is. */
+  xpIntoLevel: number;
+  xpForNext: number;
+  /** Everything earned so far. Absent from an older server. */
+  achievements?: { id: string; earnedAt: string }[];
 };
 
 export type MeResponse = {

@@ -7,6 +7,7 @@ import { viewOptions } from "@/server/cheats";
 import { getViewer } from "@/server/auth";
 import type { Action } from "@/server/engine";
 import { route, sinceParam, tableCode } from "@/server/http";
+import { awardAfterResponse } from "@/server/progress/after";
 import { rateAfterResponse } from "@/server/ratings/after";
 import { getTableService, ServiceError } from "@/server/tables";
 
@@ -22,7 +23,10 @@ export function playerAction(toAction: (request: Request) => Promise<Action>) {
     const service = await getTableService();
     const identity = { playerId: viewer.playerId, userId: viewer.userId, name: viewer.accountName ?? "" };
     const snapshot = await service.act(code, identity, action, sinceParam(request), viewOptions(request));
-    if (snapshot.view.status === "finished") rateAfterResponse(code);
+    if (snapshot.view.status === "finished") {
+      rateAfterResponse(code);
+      awardAfterResponse(code);
+    }
     return NextResponse.json<SnapshotResponse>(snapshot);
   });
 }

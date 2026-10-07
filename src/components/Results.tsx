@@ -7,6 +7,7 @@ import { AwardChips } from "./AwardChips";
 import { Podium } from "./Podium";
 import { RatingChange } from "./RatingChange";
 import { ordinal } from "./Scoreboard";
+import { XpGain } from "./XpGain";
 
 export function Results({ view }: { view: TableView }) {
   const ranked = [...view.players].sort((a, b) => (a.rank ?? 99) - (b.rank ?? 99));
@@ -54,6 +55,7 @@ export function Results({ view }: { view: TableView }) {
         </tbody>
       </table>
       <RatingChange code={view.code} versus={view.players.length >= 2} />
+      <XpGain code={view.code} />
       <Link className="button" href="/">
         Set up another table
       </Link>

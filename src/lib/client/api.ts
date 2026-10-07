@@ -9,6 +9,7 @@ import type {
   LeaderboardScope,
   MeResponse,
   PollResponse,
+  ProgressResponse,
   PublicTablesResponse,
   SnapshotResponse,
   StatsResponse,
@@ -87,6 +88,7 @@ export const api = {
   /** The most recent finished games. */
   history: (): Promise<HistoryEntry[]> => api.historyPage(1, 10).then((p) => p.entries),
   stats: () => request<StatsResponse>("/api/me/stats"),
+  progress: () => request<ProgressResponse>("/api/me/progress"),
   leaderboard: (scope: LeaderboardScope) => request<LeaderboardResponse>(`/api/leaderboard?scope=${scope}`),
   friends: () => request<FriendsResponse>("/api/friends"),
   sendFriendRequest: (handle: string) => post<{ ok: true }>("/api/friends/requests", { handle }),

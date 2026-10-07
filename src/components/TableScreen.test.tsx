@@ -166,7 +166,9 @@ describe("TableScreen match effects", () => {
     mockTable(playing, [started, matched, revealed]); // next flip lands within the effect window
     rerender(<TableScreen code="ABC234" />);
     expect(screen.getByTestId("score-popup")).toBeTruthy();
-    act(() => void vi.advanceTimersByTime(1500));
+    act(() => void vi.advanceTimersByTime(2999)); // long enough to read: it holds for about 2.5s
+    expect(screen.getByTestId("score-popup")).toBeTruthy();
+    act(() => void vi.advanceTimersByTime(1));
     expect(screen.queryByTestId("score-popup")).toBeNull();
   });
 
