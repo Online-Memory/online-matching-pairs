@@ -43,8 +43,19 @@ describe("Leaderboard", () => {
     render(<Leaderboard />);
     const rows = await screen.findAllByRole("row");
     expect(rows).toHaveLength(3); // header + 2
-    expect(within(rows[2]!).getByText("Alice")).toBeInTheDocument();
+    expect(within(rows[2]!).getByText("@alice")).toBeInTheDocument();
     expect(rows[2]).toHaveClass("you");
+  });
+
+  it("shows only the @handle, never the real name", async () => {
+    vi.spyOn(api, "leaderboard").mockResolvedValue(
+      board([entry(1, "Zed Smith", { handle: "zed" }), entry(2, "Ghost Name", { handle: null })]),
+    );
+    render(<Leaderboard />);
+    expect(await screen.findByText("@zed")).toBeInTheDocument();
+    const rows = screen.getAllByRole("row");
+    expect(within(rows[2]!).getByText("Player")).toBeInTheDocument();
+    expect(screen.queryByText(/Smith|Ghost Name/)).not.toBeInTheDocument();
   });
 
   it("shows each player's tier next to their rating", async () => {
@@ -73,14 +84,14 @@ describe("Leaderboard", () => {
   it("loads the friends scope when the tab is chosen, and hides it from guests", async () => {
     const spy = vi.spyOn(api, "leaderboard").mockResolvedValue(board([entry(1, "Zed")]));
     render(<Leaderboard />);
-    await screen.findByText("Zed");
+    await screen.findByText("@zed");
     fireEvent.click(screen.getByRole("button", { name: "Friends" }));
     await waitFor(() => expect(spy).toHaveBeenLastCalledWith("friends"));
 
     cleanup();
     vi.spyOn(meModule, "useMe").mockReturnValue({ authEnabled: true, user: null });
     render(<Leaderboard />);
-    await screen.findByText("Zed");
+    await screen.findByText("@zed");
     expect(screen.queryByRole("button", { name: "Friends" })).not.toBeInTheDocument();
   });
 

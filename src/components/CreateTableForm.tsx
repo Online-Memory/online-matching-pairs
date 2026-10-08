@@ -19,6 +19,7 @@ import {
 
 import { Button } from "./Button";
 import { NameField } from "./NameField";
+import { RotatingPlaceholder } from "./RotatingPlaceholder";
 
 export function CreateTableForm() {
   const router = useRouter();
@@ -87,40 +88,46 @@ export function CreateTableForm() {
       <div className="field-row">
         <div className="field">
           <label htmlFor="pairs">Tiles</label>
-          <select id="pairs" value={pairs} onChange={(e) => setPairs(Number(e.target.value))}>
-            {PAIR_OPTIONS.filter((p) => p <= maxPairs).map((p) => (
-              <option key={p} value={p}>
-                {p * 2}
-              </option>
-            ))}
-          </select>
+          <div className="select-wrap">
+            <select id="pairs" value={pairs} onChange={(e) => setPairs(Number(e.target.value))}>
+              {PAIR_OPTIONS.filter((p) => p <= maxPairs).map((p) => (
+                <option key={p} value={p}>
+                  {p * 2}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
         <div className="field">
           <label htmlFor="turn-seconds">Seconds per turn</label>
-          <select
-            id="turn-seconds"
-            value={turnSeconds}
-            onChange={(e) => setTurnSeconds(Number(e.target.value))}
-          >
-            {TURN_SECONDS_OPTIONS.map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
-            ))}
-          </select>
+          <div className="select-wrap">
+            <select
+              id="turn-seconds"
+              value={turnSeconds}
+              onChange={(e) => setTurnSeconds(Number(e.target.value))}
+            >
+              {TURN_SECONDS_OPTIONS.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
       </div>
 
       <div className="field">
         <label htmlFor="table-name">Table name (optional)</label>
-        <input
-          id="table-name"
-          value={tableName}
-          onChange={(e) => setTableName(e.target.value)}
-          maxLength={40}
-          placeholder="Friday night showdown"
-          autoComplete="off"
-        />
+        <div className="rotating-field">
+          <input
+            id="table-name"
+            value={tableName}
+            onChange={(e) => setTableName(e.target.value)}
+            maxLength={40}
+            autoComplete="off"
+          />
+          <RotatingPlaceholder hidden={tableName !== ""} />
+        </div>
       </div>
 
       <div className="check-field" data-checked={isPublic}>

@@ -14,9 +14,8 @@ function Row({ entry, testId }: { entry: LeaderboardEntry; testId?: string }) {
   return (
     <tr className={entry.isYou ? "you" : undefined} data-testid={testId}>
       <td>{entry.rank}</td>
-      <td>
-        {entry.name} {entry.handle && <span className="hint">@{entry.handle}</span>}
-      </td>
+      {/* Only the public @handle is shown; a player without a profile yet is just "Player". */}
+      <td>{entry.handle ? `@${entry.handle}` : "Player"}</td>
       <td>
         {entry.rating} <TierBadge tier={tierForRating(entry.rating).tier} />
       </td>
