@@ -13,7 +13,7 @@ import { getTableService, ServiceError } from "@/server/tables";
 
 type Context = { params: Promise<{ code: string }> };
 
-/** POST handler for an action by an existing player (start, flip, dismiss, leave). */
+/** POST handler for an action by an existing player (start, flip, leave). */
 export function playerAction(toAction: (request: Request) => Promise<Action>) {
   return route(async (request, context: Context) => {
     const code = await tableCode(context);

@@ -39,7 +39,7 @@
   --seat-14: #46880a;
   --seat-15: #5f6a1e;
 
-  --radius-tile: 10px;
+  --radius-tile: 8px;
   --flip-duration: 320ms;
   --flip-ease: cubic-bezier(0.3, 0.7, 0.4, 1);
   --radius-control: 8px;
@@ -147,7 +147,7 @@ a {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0.75rem clamp(1rem, 4vw, 2rem);
+  padding: 0.5rem clamp(1rem, 4vw, 2rem);
 }
 
 .brand {
@@ -626,6 +626,35 @@ a {
   margin: 0;
   margin-right: auto;
 }
+/* Inline with the title on small screens; a row of their own on large ones. */
+.table-actions {
+  display: contents;
+}
+.table-bar .table-actions > button {
+  min-width: 7rem;
+}
+@media (min-width: 1200px) {
+  .table-bar {
+    flex-wrap: wrap;
+  }
+  .table-title {
+    flex-basis: 100%;
+  }
+  .table-actions {
+    display: flex;
+    flex-basis: 100%;
+    gap: 0.75rem;
+  }
+  /* Pause and Leave share the row evenly instead of hugging their labels. */
+  .table-bar .table-actions > button {
+    flex: 1;
+  }
+}
+.table-title-code {
+  color: var(--ink-soft);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
 
 .scoreboard {
   list-style: none;
@@ -994,7 +1023,7 @@ a {
 .board-cue {
   position: absolute;
   /* Sits just above the board's top edge, in the gap under the table bar, so it never covers a tile. */
-  top: -0.25rem;
+  top: -0.6rem;
   left: 50%;
   translate: -50% -100%;
   z-index: 5;
@@ -1180,12 +1209,6 @@ a {
   margin: 0;
 }
 
-.flip-back-hint {
-  margin: 0.375rem 0 0;
-  font-size: 0.875rem;
-  color: var(--ink-soft);
-}
-
 @keyframes flip-back-drain {
   from {
     transform: scaleX(var(--from));
@@ -1280,6 +1303,7 @@ a {
   height: 100%;
   transform-style: preserve-3d;
   transition: transform var(--flip-duration) var(--flip-ease);
+  border-radius: var(--radius-tile);
 }
 
 .tile:not([data-state="hidden"]) .tile-inner {
@@ -1304,7 +1328,7 @@ a {
 }
 
 .board[data-can-flip="true"] .tile[data-state="hidden"]:hover .tile-back {
-  box-shadow: inset 0 0 0 3px var(--signal);
+  box-shadow: inset 0 0 0 2px var(--signal);
 }
 
 .tile-face {
@@ -1326,7 +1350,7 @@ a {
 }
 
 .tile[data-state="revealed"] .tile-face {
-  box-shadow: 0 0 0 3px var(--signal);
+  box-shadow: 0 0 0 2px var(--signal);
 }
 
 /* Found pairs recede so the face-down tiles stay the focus; a small dot in the owner's colour says
@@ -1606,12 +1630,39 @@ a {
   margin-top: 15px;
 }
 
+/* Small screens: one column, with the status line, then the scoreboard, under the board instead of above it. */
+@media not all and (min-width: 1200px) and (min-height: 32rem) {
+  .table-layout {
+    display: flex;
+    flex-direction: column;
+  }
+  .table-side {
+    display: contents;
+  }
+  .board-area {
+    order: 1;
+  }
+  .table-status {
+    order: 2;
+  }
+  .table-layout .scoreboard {
+    order: 3;
+  }
+  .table-foot,
+  .table-layout > .table-actions {
+    order: 4;
+  }
+  /* The "set up another table" wrapper shares a class with the Pause/Leave group, which uses display: contents. */
+  .table-layout > .table-actions {
+    display: block;
+  }
+}
+
 /*
  * Wide screens: the table fills the viewport, scores sit beside the board, and the board
  * (see Board.tsx, fitGrid) sizes its tiles to the space left so it never scrolls.
  */
-@media (min-width: 64rem) and (min-height: 32rem),
-  (orientation: landscape) and (min-width: 40rem) and (min-height: 20rem) {
+@media (min-width: 1200px) and (min-height: 32rem) {
   /* The page takes whatever height the header and any banners leave, instead of subtracting a guessed
      header height (which was a few pixels short and made the whole page scroll). */
   body:has(.table-page) {
@@ -1621,6 +1672,7 @@ a {
   }
 
   .table-page {
+    max-width: none;
     display: flex;
     flex-direction: column;
     flex: 1;
@@ -1636,6 +1688,24 @@ a {
     grid-template-columns: minmax(0, 1fr) 21rem;
     grid-template-rows: auto minmax(0, 1fr) auto;
     column-gap: 1.25rem;
+  }
+
+  /* While playing, the board column is only as wide as the board needs to use the full height
+     (--board-w, measured in Board.tsx); the side panel starts at 15rem and widens slowly up to 32rem; the pair is centred on the page. */
+  .table-page:not([data-status="finished"]) .table-layout {
+    /* The board comes first: the side panel takes only what is left after tiles reach their comfortable size
+       (--board-comfy, see COMFORTABLE_TILE), between 15rem and 32rem. Past that the tiles may keep growing up to
+       what the height allows (--board-w). It is a sized track because fr and minmax(0, W) tracks would split
+       spare space evenly. */
+    --side-max: 32rem;
+    grid-template-columns: minmax(0, 1fr) clamp(
+        15rem,
+        100% - var(--board-comfy, 100%) - 1.25rem,
+        var(--side-max)
+      );
+    width: 100%;
+    max-width: calc(var(--board-w, 100%) + var(--side-max) + 1.25rem);
+    margin-inline: auto;
   }
 
   /* Once the game is over the side panel holds the results, so it gets more room than the board. */
@@ -1668,9 +1738,15 @@ a {
     margin-bottom: 0;
   }
 
+  /* The board hugs the top of its area, so when it is shorter than the area the footer rises to meet its bottom edge. */
   .table-foot {
     grid-column: 2;
     grid-row: 3;
+    align-self: end;
+    transform: translateY(calc(var(--board-slack, 0px) * -1));
+    /* Activity line above, spotlight last, so the spotlight's bottom edge is the board's. */
+    display: flex;
+    flex-direction: column-reverse;
   }
 
   /* The board also takes row 3, which only the side column's footer needs, so the tiles can use that height.
@@ -1681,7 +1757,8 @@ a {
     min-width: 0;
     min-height: 0;
     display: grid;
-    place-items: center;
+    align-items: start;
+    justify-items: center;
   }
 
   .table-page[data-status="finished"] .board-area {
@@ -1710,7 +1787,9 @@ a {
 
   .spotlight {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    /* Two slots, each at most 200px wide (they are square), centred when the panel is wider. */
+    grid-template-columns: repeat(2, minmax(0, 200px));
+    justify-content: center;
     gap: 0.75rem;
     margin-top: 0.75rem;
   }
@@ -1743,7 +1822,7 @@ a {
        the tile grows by (zoom - 1) / 2 on each side, so edge tiles shift inward by that much and end up
        exactly on the board's edge. */
     --face-scale: 1;
-    --zoom-scale: 1.05;
+    --zoom-scale: 1.03;
     --zoom-shift: calc((var(--face-scale) * var(--zoom-scale) - 1) / 2 * 100%);
     transform: translate(
         calc(var(--zoom-x, 0) * var(--zoom-shift)),
@@ -1758,6 +1837,9 @@ a {
 
 .lobby {
   max-width: 34rem;
+}
+.lobby .colour-picker {
+  margin-bottom: 1.5rem;
 }
 
 .lobby-code {

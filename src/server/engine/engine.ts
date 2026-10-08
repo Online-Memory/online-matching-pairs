@@ -28,7 +28,6 @@ export type Action =
   | { type: "choose_colour"; colour: number }
   | { type: "start" }
   | { type: "flip"; tileId: number }
-  | { type: "dismiss" }
   | { type: "pause" }
   | { type: "resume" }
   | { type: "vote_kick" }
@@ -88,7 +87,6 @@ export function createTable(
     revealed: [],
     turn: null,
     lockUntil: null,
-    lockStartedAt: null,
     pause: null,
     lobbyExpiresAt: now + RULES.lobbyIdleMs,
     abandonAt: null,
@@ -156,9 +154,6 @@ export function applyAction(
       break;
     case "flip":
       flip(draft, actorId, action.tileId, now);
-      break;
-    case "dismiss":
-      dismiss(draft, actorId, now);
       break;
     case "pause":
       pause(draft, actorId, now);
@@ -289,7 +284,6 @@ function flip(draft: Draft, actorId: string, tileId: number, now: number) {
     else beginTurn(draft, actorId, now); // a match means go again, with a fresh timer
   } else {
     player.streak = 0;
-    s.lockStartedAt = now;
     s.lockUntil = now + RULES.mismatchLockMs;
     draft.emit(
       { type: "pair_missed", playerId: actorId, tileIds: [firstId, secondId], lockUntil: s.lockUntil },
@@ -297,27 +291,6 @@ function flip(draft: Draft, actorId: string, tileId: number, now: number) {
     );
     // The turn passes when the lock expires (see tick), once the tiles are face down again.
   }
-}
-
-/**
- * The player whose pair missed can turn it face down early instead of waiting out the lock.
- * Anything else is a no-op, so a click that races the lock expiring is harmless. A click inside
- * the first `minRevealMs` only shortens the lock to that minimum, so the other players' polls
- * still get to see the pair.
- */
-function dismiss(draft: Draft, actorId: string, now: number) {
-  const s = draft.state;
-  requirePlayer(s, actorId);
-  if (s.status !== "playing" || s.pause || s.lockUntil === null || s.turn?.playerId !== actorId) return;
-  const earliest = (s.lockStartedAt ?? s.lockUntil - RULES.mismatchLockMs) + RULES.minRevealMs;
-  if (now < earliest) {
-    // Too soon to hide it, but honour the click: shorten the lock to the minimum reveal time.
-    s.lockUntil = Math.min(s.lockUntil, earliest);
-    return;
-  }
-  s.lockUntil = null;
-  hideRevealed(draft, now);
-  advanceTurn(draft, actorId, now);
 }
 
 function leave(draft: Draft, actorId: string, now: number) {
@@ -382,7 +355,6 @@ function endPause(draft: Draft, at: number) {
   const elapsed = Math.max(0, at - s.pause.startedAt); // clock skew must not pull deadlines back
   if (s.turn && s.turn.deadline !== null) s.turn.deadline += elapsed;
   if (s.lockUntil !== null) s.lockUntil += elapsed;
-  if (s.lockStartedAt !== null) s.lockStartedAt += elapsed;
   if (s.abandonAt !== null) s.abandonAt += elapsed;
   s.pause = null;
   draft.emit({ type: "resumed" }, at);

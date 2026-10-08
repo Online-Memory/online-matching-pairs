@@ -86,8 +86,7 @@ in-memory PGlite.
 - History queries, the public directory and the ratings/stats/leaderboard queries read only `games`, `game_players`,
   `player_ratings` and `profiles`, never `table_state`.
 - A missed pair stays face up for 5s, long enough for a 1s poll to see it. Flips are rejected during that time. The
-  player whose turn it is can end the wait early (`POST …/dismiss`, sent on a left click anywhere); for anyone else it
-  does nothing, and an early click only shortens the wait to 1.5s so everyone's poll sees the pair.
+  tiles flip back only when the lock expires; nobody can end the wait early.
 - Theme pictures are one file per face, requested only once that face is shown.
 - Tests: `toView` property tests; an integration test that plays a full 3-player game and scans every response; and a
   Playwright fixture on every E2E scenario. The fixture checks API bodies, image requests and the DOM of face-down

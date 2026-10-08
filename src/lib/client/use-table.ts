@@ -1,15 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
-import {
-  MIN_REVEAL_MS,
-  MISMATCH_LOCK_MS,
-  type PollResponse,
-  type PublicEvent,
-  type SnapshotResponse,
-  type TableView,
-} from "@/lib/protocol";
+import { type PollResponse, type PublicEvent, type SnapshotResponse, type TableView } from "@/lib/protocol";
 
 import { setActiveTable } from "./active-table";
 import { api, ApiError } from "./api";
@@ -30,8 +23,7 @@ export function pollDelay(view: TableView | null, hidden: boolean, override?: nu
 const POLL_OVERRIDE = Number(process.env.NEXT_PUBLIC_POLL_MS) || undefined;
 const MAX_BACKOFF_MS = 10_000;
 
-export type TableAction =
-  "join" | "start" | "flip" | "dismiss" | "pause" | "resume" | "voteKick" | "leave" | "colour";
+export type TableAction = "join" | "start" | "flip" | "pause" | "resume" | "voteKick" | "leave" | "colour";
 
 export type TableHandle = {
   view: TableView | null;
@@ -50,13 +42,6 @@ export type TableHandle = {
   chooseColour: (colour: number) => Promise<void>;
   start: () => Promise<void>;
   flip: (tileId: number) => Promise<void>;
-  /**
-   * Turns a missed pair face down on this client at once instead of waiting for the lock to expire,
-   * then tells the server once the pair has been visible long enough for everyone else to see it.
-   */
-  dismiss: () => Promise<void>;
-  /** True from a local flip-back until the server confirms it; there is nothing left to dismiss. */
-  flippedBack: boolean;
   /** Pauses the game for up to a minute (up to 5 times per player). */
   pause: () => Promise<void>;
   /** Ends a pause early; only the player who paused can. */
@@ -83,18 +68,6 @@ export function useTable(code: string): TableHandle {
   // every other request too; this hook only sees the failures that retrying won't fix.
   const reconnecting = useOffline() || failing;
   const [pendingAction, setPendingAction] = useState<TableAction | null>(null);
-  // Tiles we turned face down ahead of the server, and the snapshot we did it on. Any snapshot that
-  // is not newer than that one (e.g. a poll already in flight) is masked; a newer one is the server's
-  // answer and replaces the mask, so nothing needs clearing.
-  type FlippedBack = { ids: number[]; seq: number };
-  const [flipped, setFlipped] = useState<FlippedBack | null>(null);
-  const flippedRef = useRef<FlippedBack | null>(null);
-  const dismissTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const serverOffsetRef = useRef(0);
-  useEffect(() => {
-    serverOffsetRef.current = serverOffset;
-  }, [serverOffset]);
-
   const since = useRef(-1);
   const viewRef = useRef<TableView | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -117,7 +90,6 @@ export function useTable(code: string): TableHandle {
     since.current = response.view.seq;
     viewRef.current = response.view;
     setView(response.view);
-    if (flippedRef.current && response.view.seq > flippedRef.current.seq) flippedRef.current = null;
     if (response.events.length) setEvents((prev) => [...prev, ...response.events].slice(-20));
     return false;
   }, []);
@@ -171,7 +143,6 @@ export function useTable(code: string): TableHandle {
     return () => {
       stopped.current = true;
       clearTimeout(timer.current);
-      clearTimeout(dismissTimer.current);
       document.removeEventListener("visibilitychange", onVisibility);
       window.removeEventListener("online", onOnline);
     };
@@ -208,42 +179,8 @@ export function useTable(code: string): TableHandle {
     [apply, poll, schedule],
   );
 
-  const dismiss = useCallback(async () => {
-    const current = viewRef.current;
-    if (!current || flippedRef.current) return;
-    const ids = current.tiles.filter((t) => t.state === "revealed").map((t) => t.id);
-    if (!ids.length) return;
-    const mask = { ids, seq: current.seq };
-    flippedRef.current = mask;
-    setFlipped(mask);
-    // The server ignores a dismissal made before the pair has been visible for MIN_REVEAL_MS (other
-    // players' polls must see it), so hold the request back until then.
-    const shownSince = current.lockUntil === null ? 0 : current.lockUntil - MISMATCH_LOCK_MS;
-    const wait = Math.max(0, shownSince + MIN_REVEAL_MS - (Date.now() + serverOffsetRef.current));
-    await new Promise<void>((resolve) => {
-      dismissTimer.current = setTimeout(resolve, wait);
-    });
-    if (stopped.current || flippedRef.current !== mask) return;
-    if (!(await run("dismiss", (s) => api.dismiss(code, s)))) {
-      flippedRef.current = null; // the rejection re-polls; show whatever the server says
-      setFlipped(null);
-    }
-  }, [code, run]);
-
-  // What components render: the server's view, minus the tiles we've already turned face down.
-  const activeMask = view && flipped && view.seq <= flipped.seq ? flipped : null;
-  const shownView = useMemo(() => {
-    if (!view || !activeMask) return view;
-    return {
-      ...view,
-      tiles: view.tiles.map((t): TableView["tiles"][number] =>
-        t.state === "revealed" && activeMask.ids.includes(t.id) ? { id: t.id, state: "hidden" } : t,
-      ),
-    };
-  }, [view, activeMask]);
-
   return {
-    view: shownView,
+    view,
     serverOffset,
     events,
     loadError,
@@ -255,8 +192,6 @@ export function useTable(code: string): TableHandle {
     chooseColour: async (colour) => void (await run("colour", (s) => api.chooseColour(code, s, colour))),
     start: async () => void (await run("start", (s) => api.start(code, s))),
     flip: async (tileId) => void (await run("flip", (s) => api.flip(code, s, tileId))),
-    dismiss,
-    flippedBack: activeMask !== null,
     pause: async () => void (await run("pause", (s) => api.pause(code, s))),
     resume: async () => void (await run("resume", (s) => api.resume(code, s))),
     voteKick: async () => void (await run("voteKick", (s) => api.voteKick(code, s))),

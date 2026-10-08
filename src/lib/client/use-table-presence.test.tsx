@@ -49,11 +49,8 @@ describe("useTable reports where we sit", () => {
     vi.spyOn(api, "poll")
       .mockResolvedValueOnce(snapshot({ status: "playing" }))
       .mockResolvedValue(snapshot({ seq: 2, status: "finished" }));
-    const { result } = renderHook(() => useTable("ABC234"));
+    renderHook(() => useTable("ABC234"));
     await waitFor(() => expect(getActiveTable()).toBe("ABC234"));
-    await act(async () => {
-      await result.current.dismiss().catch(() => {});
-    });
     await waitFor(() => expect(getActiveTable()).toBeNull());
   });
 });

@@ -4,14 +4,14 @@ import { useState, type CSSProperties } from "react";
 
 import { MISMATCH_LOCK_MS } from "@/lib/protocol";
 
-type Props = { lockUntil: number; serverOffset: number; canDismiss: boolean };
+type Props = { lockUntil: number; serverOffset: number };
 
 /**
  * Drains while a mismatched pair is face up. The server's `lockUntil` decides when the tiles really
- * flip back; this only shows it. Mount it with `key={lockUntil}`: an early dismissal moves
- * `lockUntil`, and the remount restarts the animation from the new remaining time.
+ * flip back; this only shows it. Mount it with `key={lockUntil}` so the animation restarts if
+ * the lock moves (a pause shifts it).
  */
-export function FlipBackBar({ lockUntil, serverOffset, canDismiss }: Props) {
+export function FlipBackBar({ lockUntil, serverOffset }: Props) {
   const [remainingMs] = useState(() => Math.max(0, lockUntil - (Date.now() + serverOffset)));
   const from = Math.min(1, remainingMs / MISMATCH_LOCK_MS);
 
@@ -23,7 +23,6 @@ export function FlipBackBar({ lockUntil, serverOffset, canDismiss }: Props) {
           style={{ "--from": from, "--drain-ms": `${remainingMs}ms` } as CSSProperties}
         />
       </div>
-      {canDismiss && <p className="flip-back-hint">Click anywhere to flip them back sooner.</p>}
     </div>
   );
 }

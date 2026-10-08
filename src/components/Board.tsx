@@ -7,6 +7,15 @@ import { boardColumns, themeSpriteUrl, type PlayerView, type TileView } from "@/
 
 import { Tile } from "./Tile";
 
+export type IdealSize = {
+  /** Width of the grid with tiles as big as the height allows. */
+  width: number;
+  /** Width of the grid with tiles at the comfortable size (or the height limit, if that is smaller). */
+  comfortable: number;
+  /** Height (px) of the area below the grid, when the width rather than the height limits the tiles. */
+  slack: number;
+};
+
 type Props = {
   tiles: TileView[];
   theme: string;
@@ -21,17 +30,40 @@ type Props = {
   paused?: boolean;
   /** Countdown shown under the "Game Paused" text. */
   pauseBar?: ReactNode;
+  /** What the grid would measure if the height of its area were its only limit (px), so the layout can give it exactly that. */
+  onIdealSize?: (ideal: IdealSize) => void;
 };
 
 /** Gap between tiles in the fit-to-view layout; the stylesheet uses the same value. */
 const FIT_GAP = 6;
 
-export function Board({ tiles, theme, players, canFlip, celebrating, onFlip, cue, paused, pauseBar }: Props) {
+/** Tile size (px) the side panel yields to: it only widens once the tiles are this big. */
+const COMFORTABLE_TILE = 120;
+
+/** Tiles never grow past this (px), however much room there is. */
+const MAX_TILE = 200;
+
+export function Board({
+  tiles,
+  theme,
+  players,
+  canFlip,
+  celebrating,
+  onFlip,
+  cue,
+  paused,
+  pauseBar,
+  onIdealSize,
+}: Props) {
   const columns = boardColumns(tiles.length);
   const rows = Math.ceil(tiles.length / columns);
   const areaRef = useRef<HTMLDivElement>(null);
   const [fit, setFit] = useState<GridFit | null>(null);
   const count = tiles.length;
+  const onIdealSizeRef = useRef(onIdealSize);
+  useEffect(() => {
+    onIdealSizeRef.current = onIdealSize;
+  });
   // Public information (matched tiles are visible to everyone): two left means the next match ends it.
   const lastPair = count > 2 && tiles.filter((t) => t.state !== "matched").length === 2;
 
@@ -46,7 +78,17 @@ export function Board({ tiles, theme, players, canFlip, celebrating, onFlip, cue
     const area = areaRef.current;
     if (!area) return;
     const measure = () => {
-      const next = fitGrid(count, columns, area.clientWidth, area.clientHeight, FIT_GAP);
+      const next = fitGrid(count, columns, area.clientWidth, area.clientHeight, FIT_GAP, MAX_TILE);
+      const tileByHeight = Math.min(MAX_TILE, (area.clientHeight - (rows - 1) * FIT_GAP) / rows);
+      if (tileByHeight > 0) {
+        const width = Math.ceil(columns * tileByHeight + (columns - 1) * FIT_GAP);
+        const comfy = Math.min(tileByHeight, COMFORTABLE_TILE);
+        onIdealSizeRef.current?.({
+          width,
+          comfortable: Math.ceil(columns * comfy + (columns - 1) * FIT_GAP),
+          slack: Math.max(0, area.clientHeight - (next.rows * next.size + (next.rows - 1) * FIT_GAP)),
+        });
+      }
       setFit((prev) =>
         prev && prev.cols === next.cols && prev.size === next.size && prev.rows === next.rows ? prev : next,
       );
@@ -56,7 +98,7 @@ export function Board({ tiles, theme, players, canFlip, celebrating, onFlip, cue
     const observer = new ResizeObserver(measure);
     observer.observe(area);
     return () => observer.disconnect();
-  }, [count, columns]);
+  }, [count, columns, rows]);
 
   // Edge tiles lean inward when zoomed so the enlarged picture is not cut off by the board's edge.
   const layoutCols = fit?.cols ?? columns;

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Fragment, useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState, type CSSProperties } from "react";
 
 import { finishMessage } from "@/lib/client/finish-message";
 import { BURST_COUNT, streakTier, type StreakTier } from "@/lib/client/streak-tier";
@@ -10,7 +10,7 @@ import { useMe } from "@/lib/client/use-me";
 import { useTable } from "@/lib/client/use-table";
 import type { PublicEvent, TableView } from "@/lib/protocol";
 
-import { Board } from "./Board";
+import { Board, type IdealSize } from "./Board";
 import { BoardCue } from "./BoardCue";
 import { Button } from "./Button";
 import { CELEBRATION_MS, Confetti, ConfettiBurst } from "./Confetti";
@@ -82,6 +82,8 @@ export function TableScreen({ code, autoJoin = false }: { code: string; autoJoin
   // in the same response as the event. Its own timer: the events effect above is re-run (and its
   // cleanup fires) by any later event, so it must not own this timeout.
   type MatchFx = { key: number; x: number; y: number; label: string; tier: StreakTier };
+  // Width the board would take if the viewport height were its only limit; the stylesheet gives it that much.
+  const [ideal, setIdeal] = useState<IdealSize | null>(null);
   const [matchFx, setMatchFx] = useState<MatchFx | null>(null);
   const playersRef = useRef(view?.players);
   useEffect(() => {
@@ -113,46 +115,6 @@ export function TableScreen({ code, autoJoin = false }: { code: string; autoJoin
     const id = setTimeout(() => setMatchFx(null), 3000);
     return () => clearTimeout(id);
   }, [matchFx]);
-
-  // After a miss the player whose turn it is can click anywhere to turn the pair face down early.
-  const canDismiss =
-    view?.status === "playing" &&
-    !view.pause &&
-    view.lockUntil !== null &&
-    view.turn?.playerId === view.youId &&
-    !table.flippedBack;
-  const dismissRef = useRef(table.dismiss);
-  useEffect(() => {
-    dismissRef.current = table.dismiss;
-  });
-  // The click that follows a dismissing release must not also flip the tile under the cursor, even when
-  // the turn comes straight back to this player (solo game) and the tile is flippable again by then.
-  const swallowClick = useRef(false);
-  useEffect(() => {
-    if (!canDismiss) return;
-    let clearTimer: ReturnType<typeof setTimeout> | undefined;
-    const onPointerUp = (e: PointerEvent) => {
-      if (e.button !== 0) return;
-      swallowClick.current = true;
-      clearTimeout(clearTimer);
-      clearTimer = setTimeout(() => (swallowClick.current = false), 1000);
-      void dismissRef.current();
-    };
-    window.addEventListener("pointerup", onPointerUp);
-    // The swallow timer is left running on purpose: the click arrives after the dismiss ended the lock.
-    return () => window.removeEventListener("pointerup", onPointerUp);
-  }, [canDismiss]);
-  useEffect(() => {
-    // Capture phase on window runs before React's handlers, so the tile never sees this click.
-    const onClick = (e: MouseEvent) => {
-      if (!swallowClick.current) return;
-      swallowClick.current = false;
-      e.stopPropagation();
-      e.preventDefault();
-    };
-    window.addEventListener("click", onClick, true);
-    return () => window.removeEventListener("click", onClick, true);
-  }, []);
 
   if (table.loadError?.code === "not_found") {
     return (
@@ -188,33 +150,46 @@ export function TableScreen({ code, autoJoin = false }: { code: string; autoJoin
   const tableBar = (
     <header className="table-bar">
       <h1 className="table-title">
-        Table <span data-testid="table-code-bar">{view.code}</span>
+        {view.tableName ? (
+          <>
+            {view.tableName}{" "}
+            <small className="table-title-code">
+              (<span data-testid="table-code-bar">{view.code}</span>)
+            </small>
+          </>
+        ) : (
+          <>
+            Table <span data-testid="table-code-bar">{view.code}</span>
+          </>
+        )}
       </h1>
-      {view.canPause && (
-        <Button
-          className="button-quiet"
-          onClick={() => void table.pause()}
-          disabled={table.pending}
-          pending={table.pendingAction === "pause"}
-        >
-          Pause
-        </Button>
-      )}
-      {view.status === "playing" && you && you.status !== "left" && (
-        <Button
-          className="button-quiet"
-          onClick={() => void table.leave()}
-          disabled={table.pending}
-          pending={table.pendingAction === "leave"}
-        >
-          Leave
-        </Button>
-      )}
+      <div className="table-actions">
+        {view.canPause && (
+          <Button
+            className="button-quiet"
+            onClick={() => void table.pause()}
+            disabled={table.pending}
+            pending={table.pendingAction === "pause"}
+          >
+            Pause
+          </Button>
+        )}
+        {view.status === "playing" && you && you.status !== "left" && (
+          <Button
+            className="button-quiet"
+            onClick={() => void table.leave()}
+            disabled={table.pending}
+            pending={table.pendingAction === "leave"}
+          >
+            Leave
+          </Button>
+        )}
+      </div>
     </header>
   );
 
   const statusLine = (
-    <p className="status-line" role="status" data-testid="status-line">
+    <p className="status-line table-status" role="status" data-testid="status-line">
       {statusText(view, myTurn)}
     </p>
   );
@@ -235,7 +210,18 @@ export function TableScreen({ code, autoJoin = false }: { code: string; autoJoin
           onLeave={() => void table.leave()}
         />
       ) : (
-        <div className="table-layout">
+        <div
+          className="table-layout"
+          style={
+            ideal
+              ? ({
+                  "--board-w": `${ideal.width}px`,
+                  "--board-comfy": `${ideal.comfortable}px`,
+                  "--board-slack": `${ideal.slack}px`,
+                } as CSSProperties)
+              : undefined
+          }
+        >
           <div className="table-head">{view.status === "finished" && statusLine}</div>
           <div className="table-side">
             {tableBar}
@@ -259,7 +245,6 @@ export function TableScreen({ code, autoJoin = false }: { code: string; autoJoin
                 key={view.lockUntil}
                 lockUntil={view.lockUntil}
                 serverOffset={table.serverOffset}
-                canDismiss={canDismiss}
               />
             )}
             {you?.status === "away" && view.status === "playing" && (
@@ -302,6 +287,7 @@ export function TableScreen({ code, autoJoin = false }: { code: string; autoJoin
             }
             celebrating={celebrating}
             onFlip={(id) => void table.flip(id)}
+            onIdealSize={setIdeal}
             cue={myTurn && !view.turn?.timedOut ? <BoardCue level={idleLevel} /> : undefined}
           />
           {view.status === "finished" && (

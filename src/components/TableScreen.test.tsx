@@ -48,7 +48,6 @@ function mockTable(view: TableView, events: PublicEvent[] = []) {
     chooseColour,
     start: vi.fn(),
     flip: vi.fn(),
-    dismiss: vi.fn(),
     pause: vi.fn(),
     resume: vi.fn(),
     voteKick,

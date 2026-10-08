@@ -149,38 +149,20 @@ describe("flip", () => {
     expect(state.lockUntil).toBeNull();
   });
 
-  it("the player who missed can dismiss the lock early; nobody else can, and it is a no-op otherwise", () => {
+  it("keeps a missed pair face up for the whole lock, then hides it and passes the turn", () => {
     let s = started(2);
     const [a, b] = mismatch(s);
-    expect(act(s, "p1", { type: "dismiss" }, T0 + 500)).toEqual(s);
     s = act(s, "p1", { type: "flip", tileId: a }, T0 + 1000);
     s = act(s, "p1", { type: "flip", tileId: b }, T0 + 2000);
+    const end = T0 + 2000 + RULES.mismatchLockMs;
+    expect(s.lockUntil).toBe(end);
 
-    const other = act(s, "p2", { type: "dismiss" }, T0 + 2000 + RULES.minRevealMs);
-    expect(other.lockUntil).toBe(s.lockUntil);
-    // Too soon to hide: the lock shrinks to the minimum reveal time, so the tiles still flip back early.
-    const tooSoon = act(s, "p1", { type: "dismiss" }, T0 + 2100);
-    expect(tooSoon.lockUntil).toBe(T0 + 2000 + RULES.minRevealMs);
-    expect(tick(tooSoon, T0 + 2000 + RULES.minRevealMs).state.board[a]!.state).toBe("hidden");
-
-    const at = T0 + 2000 + RULES.minRevealMs;
-    const { state, events } = applyAction(s, "p1", { type: "dismiss" }, at, seededRng(42));
+    expect(tick(s, end - 1).state.board[a]!.state).toBe("revealed");
+    const { state, events } = tick(s, end);
     expect(events.map((e) => e.type)).toEqual(["tiles_hidden", "turn_changed"]);
     expect(state.board[a]!.state).toBe("hidden");
     expect(state.lockUntil).toBeNull();
-    expect(state.turn).toEqual({ playerId: "p2", deadline: at + 20_000, timedOut: false, kickVotes: [] });
-  });
-
-  it("repeated early dismissals cannot hide the pair before the minimum reveal time", () => {
-    let s = started(2);
-    const [a, b] = mismatch(s);
-    s = act(s, "p1", { type: "flip", tileId: a }, T0 + 1000);
-    s = act(s, "p1", { type: "flip", tileId: b }, T0 + 2000);
-
-    s = act(s, "p1", { type: "dismiss" }, T0 + 2100);
-    s = act(s, "p1", { type: "dismiss" }, T0 + 2200);
-    expect(s.lockUntil).toBe(T0 + 2000 + RULES.minRevealMs);
-    expect(s.board[a]!.state).toBe("revealed");
+    expect(state.turn!.playerId).toBe("p2");
   });
 
   it("rejects out-of-turn, face-up and unknown tiles", () => {
@@ -549,10 +531,9 @@ describe("pause", () => {
     expect(act(paused, "p2", { type: "resume" }, T0 + 2_000).pause).toBeNull();
   });
 
-  it("blocks flips, ignores dismiss, and schedules only its own end", () => {
+  it("blocks flips and schedules only its own end", () => {
     const s = act(started(2), "p1", { type: "pause" }, T0 + 1_000);
     expectError(() => act(s, "p1", { type: "flip", tileId: 0 }, T0 + 2_000), "paused");
-    expect(act(s, "p1", { type: "dismiss" }, T0 + 2_000)).toEqual(s);
     expect(nextDueAt(s)).toBe(T0 + 1_000 + MIN);
   });
 

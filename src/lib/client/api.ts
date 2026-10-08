@@ -82,7 +82,6 @@ export const api = {
   start: (code: string, since: number) => post<SnapshotResponse>(table(code, "start", since)),
   flip: (code: string, since: number, tileId: number) =>
     post<SnapshotResponse>(table(code, "flip", since), { tileId }),
-  dismiss: (code: string, since: number) => post<SnapshotResponse>(table(code, "dismiss", since)),
   pause: (code: string, since: number) => post<SnapshotResponse>(table(code, "pause", since)),
   resume: (code: string, since: number) => post<SnapshotResponse>(table(code, "resume", since)),
   voteKick: (code: string, since: number) => post<SnapshotResponse>(table(code, "vote-kick", since)),

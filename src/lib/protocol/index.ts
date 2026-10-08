@@ -22,10 +22,8 @@ export const codeSchema = z
 export const GUEST_MAX_PLAYERS = 4;
 export const MAX_PLAYERS = 12;
 export const maxPlayersFor = (signedIn: boolean) => (signedIn ? MAX_PLAYERS : GUEST_MAX_PLAYERS);
-/** How long a mismatched pair stays face up unless its player flips it back sooner. */
-export const MISMATCH_LOCK_MS = 5_000;
-/** A dismissal is ignored until the pair has been face up this long, so a 1s poll always sees it. */
-export const MIN_REVEAL_MS = 1_500;
+/** How long a mismatched pair stays face up; nobody can flip it back sooner. */
+export const MISMATCH_LOCK_MS = 4_000;
 export const TURN_SECONDS_OPTIONS = [10, 15, 20, 30, 45, 60] as const;
 
 export const displayNameSchema = z
@@ -130,7 +128,7 @@ export type TableView = {
   tiles: TileView[];
   /** `deadline` is server epoch ms (null while the turn is held for a kick vote); the client renders a countdown, the server decides expiry. */
   turn: { playerId: string; deadline: number | null; timedOut: boolean } | null;
-  /** Mismatched tiles stay face up until this server time (or until the player dismisses them). */
+  /** Mismatched tiles stay face up until this server time. */
   lockUntil: number | null;
   /** Set while the game is paused. `until` is when it resumes by itself; times are server epoch ms. */
   pause: { by: string; startedAt: number; until: number } | null;
