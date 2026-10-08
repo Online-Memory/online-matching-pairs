@@ -894,9 +894,10 @@ a {
 
 .board-cue {
   position: absolute;
-  top: 0.5rem;
+  /* Sits just above the board's top edge, in the gap under the table bar, so it never covers a tile. */
+  top: -0.25rem;
   left: 50%;
-  translate: -50% 0;
+  translate: -50% -100%;
   z-index: 5;
   margin: 0;
   max-width: calc(100% - 1rem);

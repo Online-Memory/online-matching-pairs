@@ -25,7 +25,6 @@ type Props = {
 
 /** Gap between tiles in the fit-to-view layout; the stylesheet uses the same value. */
 const FIT_GAP = 6;
-const FIT_MAX_TILE = 176;
 
 export function Board({ tiles, theme, players, canFlip, celebrating, onFlip, cue, paused, pauseBar }: Props) {
   const columns = boardColumns(tiles.length);
@@ -47,7 +46,7 @@ export function Board({ tiles, theme, players, canFlip, celebrating, onFlip, cue
     const area = areaRef.current;
     if (!area) return;
     const measure = () => {
-      const next = fitGrid(count, columns, area.clientWidth, area.clientHeight, FIT_GAP, FIT_MAX_TILE);
+      const next = fitGrid(count, columns, area.clientWidth, area.clientHeight, FIT_GAP);
       setFit((prev) =>
         prev && prev.cols === next.cols && prev.size === next.size && prev.rows === next.rows ? prev : next,
       );
