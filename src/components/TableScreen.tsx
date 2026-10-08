@@ -236,11 +236,9 @@ export function TableScreen({ code, autoJoin = false }: { code: string; autoJoin
         />
       ) : (
         <div className="table-layout">
-          <div className="table-head">
-            {tableBar}
-            {view.status === "finished" && statusLine}
-          </div>
+          <div className="table-head">{view.status === "finished" && statusLine}</div>
           <div className="table-side">
+            {tableBar}
             <Scoreboard view={view} serverOffset={table.serverOffset} idleLevel={idleLevel} />
             {view.status !== "finished" && statusLine}
             {view.tiles.some((t) => t.state === "hidden" && t.peek !== undefined) && (
