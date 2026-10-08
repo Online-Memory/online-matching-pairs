@@ -90,15 +90,21 @@ export function ProfileColours() {
               >
                 {colour !== undefined && <span className="seat-token" aria-hidden />}
                 {colour === undefined ? `${ORDINALS[slot]} choice` : colourName(colour)}
+                {colour !== undefined && (
+                  <span className="colour-slot-rank" aria-hidden>
+                    {ORDINALS[slot]}
+                  </span>
+                )}
               </button>
               {colour !== undefined && (
                 <button
                   type="button"
-                  className="button-quiet"
+                  className="colour-slot-clear"
                   aria-label={`Clear ${ORDINALS[slot]} choice`}
+                  title="Clear"
                   onClick={() => clear(slot)}
                 >
-                  Clear
+                  <span aria-hidden>✕</span>
                 </button>
               )}
             </li>

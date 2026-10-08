@@ -10,7 +10,7 @@ import { Button } from "./Button";
 import { ordinal } from "./Scoreboard";
 import { LoadingNotice } from "./Spinner";
 
-const PAGE_SIZE = 10;
+const PAGE_SIZE = 6;
 
 export function FinishedGames() {
   const [page, setPage] = useState(1);

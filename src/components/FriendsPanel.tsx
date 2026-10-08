@@ -116,7 +116,9 @@ export function FriendsPanel() {
 
       {data.invites.length > 0 && (
         <div className="friends-card">
-          <h3>Table invites</h3>
+          <h3>
+            Table invites <span className="count-pill">{data.invites.length}</span>
+          </h3>
           <InviteList
             invites={data.invites}
             isDismissing={(id) => pending.isPending(`invite:${id}`)}
@@ -127,8 +129,10 @@ export function FriendsPanel() {
 
       {data.incoming.length > 0 && (
         <div className="friends-card">
-          <h3>Friend requests</h3>
-          <ul className="friend-rows" aria-label="Friend requests">
+          <h3>
+            Friend requests <span className="count-pill">{data.incoming.length}</span>
+          </h3>
+          <ul className="friend-rows friend-requests" aria-label="Friend requests">
             {data.incoming.map((r) => (
               <li key={r.userId} className="friend-row">
                 <span className="avatar" aria-hidden>
@@ -164,9 +168,16 @@ export function FriendsPanel() {
       )}
 
       <div className="friends-card">
-        <h3>Your friends</h3>
+        <h3>
+          Your friends{" "}
+          {friends.length > 0 && (
+            <span className="count-pill">
+              {friends.filter((f) => f.online).length} online · {friends.length}
+            </span>
+          )}
+        </h3>
         {friends.length === 0 ? (
-          <p className="hint">No friends yet. Share your handle, or add someone below.</p>
+          <p className="friends-empty">No friends yet. Share your handle, or add someone below.</p>
         ) : (
           <ul className="friend-rows" aria-label="Friends">
             {friends.map((f) => (
@@ -179,7 +190,7 @@ export function FriendsPanel() {
                   <strong>
                     {f.name} <small>@{f.handle}</small>
                   </strong>
-                  <span className="hint">{f.online ? "Online" : lastSeen(f.lastSeenAt)}</span>
+                  <span className="hint friend-status">{f.online ? "Online" : lastSeen(f.lastSeenAt)}</span>
                 </span>
                 <Button
                   className="button-quiet"

@@ -28,7 +28,7 @@ const page = (entries: HistoryEntry[], total: number, n = 1): HistoryPage => ({
   entries,
   total,
   page: n,
-  pageSize: 10,
+  pageSize: 6,
 });
 
 afterEach(() => {
@@ -59,11 +59,11 @@ describe("FinishedGames", () => {
       .spyOn(api, "historyPage")
       .mockImplementation(async (n) => page([entry(n === 1 ? "AAAA" : "BBBB", 2, 1000, 990)], 25, n));
     render(<FinishedGames />);
-    expect(await screen.findByText(/Page 1 of 3 · 1–10 of 25/)).toBeInTheDocument();
+    expect(await screen.findByText(/Page 1 of 5 · 1–6 of 25/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Prev/ })).toBeDisabled();
     fireEvent.click(screen.getByRole("button", { name: /Next/ }));
-    expect(await screen.findByText(/Page 2 of 3 · 11–20 of 25/)).toBeInTheDocument();
-    expect(spy).toHaveBeenLastCalledWith(2, 10);
+    expect(await screen.findByText(/Page 2 of 5 · 7–12 of 25/)).toBeInTheDocument();
+    expect(spy).toHaveBeenLastCalledWith(2, 6);
     expect(screen.getByText(/▼ −10/)).toBeInTheDocument();
   });
 });

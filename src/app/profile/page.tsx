@@ -4,7 +4,7 @@ export const metadata = { title: "Your games · Matching Pairs" };
 
 export default function ProfilePage() {
   return (
-    <main className="page page-narrow">
+    <main className="page page-profile">
       <Profile />
     </main>
   );

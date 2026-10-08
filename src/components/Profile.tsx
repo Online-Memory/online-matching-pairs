@@ -46,35 +46,48 @@ export function Profile() {
 
   return (
     <>
-      <h1>{me.user.name}</h1>
-      {me.user.email && <p className="hint">{me.user.email}</p>}
-      {progress && <LevelBar progress={progress} />}
-      {progress && <AchievementsPanel earned={progress.achievements ?? []} />}
-      {stats === undefined ? (
-        <LoadingNotice>Loading your record…</LoadingNotice>
-      ) : (
-        stats && <StatsPanel stats={stats} />
-      )}
-      <ProfileColours />
-      <FriendsPanel />
+      <header className="profile-head">
+        <span className="avatar profile-avatar" aria-hidden>
+          {me.user.name.slice(0, 1).toUpperCase()}
+        </span>
+        <div className="profile-id">
+          <h1>{me.user.name}</h1>
+          {me.user.email && <p className="hint">{me.user.email}</p>}
+        </div>
+        <Button
+          className="button-quiet"
+          pending={signingOut}
+          onClick={async () => {
+            setSigningOut(true);
+            try {
+              await authClient.signOut();
+              invalidateMe();
+              router.push("/");
+              router.refresh();
+            } catch {
+              setSigningOut(false);
+            }
+          }}
+        >
+          Sign out
+        </Button>
+      </header>
+      <div className="profile-grid">
+        <div className="profile-col">
+          {progress && <LevelBar progress={progress} />}
+          {stats === undefined ? (
+            <LoadingNotice>Loading your record…</LoadingNotice>
+          ) : (
+            stats && <StatsPanel stats={stats} />
+          )}
+          {progress && <AchievementsPanel earned={progress.achievements ?? []} />}
+        </div>
+        <div className="profile-col">
+          <ProfileColours />
+          <FriendsPanel />
+        </div>
+      </div>
       <FinishedGames />
-      <Button
-        className="button-quiet"
-        pending={signingOut}
-        onClick={async () => {
-          setSigningOut(true);
-          try {
-            await authClient.signOut();
-            invalidateMe();
-            router.push("/");
-            router.refresh();
-          } catch {
-            setSigningOut(false);
-          }
-        }}
-      >
-        Sign out
-      </Button>
     </>
   );
 }
