@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, cleanup, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import * as meModule from "@/lib/client/use-me";
@@ -32,6 +32,7 @@ const lobby = {
 } as unknown as TableView;
 
 const join = vi.fn(async () => {});
+const voteKick = vi.fn(async () => {});
 
 function mockTable(view: TableView, events: PublicEvent[] = []) {
   vi.spyOn(tableModule, "useTable").mockReturnValue({
@@ -48,6 +49,7 @@ function mockTable(view: TableView, events: PublicEvent[] = []) {
     dismiss: vi.fn(),
     pause: vi.fn(),
     resume: vi.fn(),
+    voteKick,
     leave: vi.fn(),
     clearActionError: vi.fn(),
   } as unknown as tableModule.TableHandle);
@@ -55,6 +57,7 @@ function mockTable(view: TableView, events: PublicEvent[] = []) {
 
 beforeEach(() => {
   join.mockClear();
+  voteKick.mockClear();
   vi.spyOn(meModule, "useMe").mockReturnValue(signedIn);
 });
 afterEach(() => {
@@ -118,6 +121,13 @@ describe("TableScreen pause", () => {
     expect(getByTestId("pause-bar")).toBeTruthy();
     expect(getByTestId("status-line").textContent).toBe("Game paused");
   });
+
+  it("fades the board, makes it inert and announces the pause over it", () => {
+    mockTable({ ...playing, pause: { by: "h", startedAt: 1_000, until: 61_000 } } as TableView);
+    const { getByTestId, getByRole } = render(<TableScreen code="ABC234" />);
+    expect(getByTestId("board-paused").textContent).toBe("Game Paused");
+    expect(getByRole("group", { name: "Board" }).getAttribute("data-paused")).toBe("true");
+  });
 });
 
 describe("TableScreen match effects", () => {
@@ -179,5 +189,59 @@ describe("TableScreen match effects", () => {
     mockTable(single, [started, matched]);
     rerender(<TableScreen code="ABC234" />);
     expect(screen.getByTestId("score-popup")).toHaveTextContent(/^\+1$/);
+  });
+});
+
+describe("TableScreen kick vote", () => {
+  it("shows the vote button for a held turn and calls voteKick", () => {
+    mockTable({
+      ...lobby,
+      status: "playing",
+      youId: "b",
+      players: [
+        { id: "a", name: "Ann", seat: 0, status: "active", isHost: true, isGuest: false },
+        { id: "b", name: "Bob", seat: 1, status: "active", isHost: false, isGuest: false },
+      ],
+      turn: { playerId: "a", deadline: null, timedOut: true },
+      kickVote: { targetId: "a", votes: 0, needed: 1, youVoted: false },
+      canVoteKick: true,
+      pause: null,
+      canPause: false,
+    } as unknown as TableView);
+    render(<TableScreen code="ABC234" />);
+    expect(screen.getByTestId("status-line").textContent).toBe("Ann ran out of time");
+    fireEvent.click(screen.getByRole("button", { name: "Vote to kick Ann" }));
+    expect(voteKick).toHaveBeenCalledOnce();
+  });
+});
+
+describe("TableScreen turn cue", () => {
+  const myTurn = {
+    ...lobby,
+    status: "playing",
+    youId: "h",
+    turn: { playerId: "h", deadline: Date.now() + 60_000, timedOut: false },
+    turnSeconds: 60,
+    lockUntil: null,
+    pause: null,
+    canPause: false,
+  } as unknown as TableView;
+
+  it("tells the player on the clock that it is their turn", () => {
+    mockTable(myTurn);
+    const { getByTestId } = render(<TableScreen code="ABC234" />);
+    expect(getByTestId("board-cue").textContent).toBe("It's your turn");
+  });
+
+  it("shows no cue on someone else's turn or while the turn is held for a vote", () => {
+    mockTable({
+      ...myTurn,
+      turn: { playerId: "g", deadline: Date.now() + 60_000, timedOut: false },
+    } as TableView);
+    const { queryByTestId, rerender } = render(<TableScreen code="ABC234" />);
+    expect(queryByTestId("board-cue")).toBeNull();
+    mockTable({ ...myTurn, turn: { playerId: "h", deadline: null, timedOut: true } } as TableView);
+    rerender(<TableScreen code="ABC234" />);
+    expect(queryByTestId("board-cue")).toBeNull();
   });
 });

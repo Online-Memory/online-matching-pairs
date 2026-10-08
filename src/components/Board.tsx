@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 
 import { fitGrid, type GridFit } from "@/lib/client/fit-grid";
 import { boardColumns, themeSpriteUrl, type PlayerView, type TileView } from "@/lib/protocol";
@@ -15,13 +15,19 @@ type Props = {
   /** Tiles of a pair that was just matched (they get a short celebration). */
   celebrating?: number[];
   onFlip: (tileId: number) => void;
+  /** Short message laid over the board, e.g. that it is your turn. */
+  cue?: ReactNode;
+  /** The game is paused: the board stays visible but faded and inert, with a notice over it. */
+  paused?: boolean;
+  /** Countdown shown under the "Game Paused" text. */
+  pauseBar?: ReactNode;
 };
 
 /** Gap between tiles in the fit-to-view layout; the stylesheet uses the same value. */
 const FIT_GAP = 6;
 const FIT_MAX_TILE = 176;
 
-export function Board({ tiles, theme, players, canFlip, celebrating, onFlip }: Props) {
+export function Board({ tiles, theme, players, canFlip, celebrating, onFlip, cue, paused, pauseBar }: Props) {
   const columns = boardColumns(tiles.length);
   const rows = Math.ceil(tiles.length / columns);
   const areaRef = useRef<HTMLDivElement>(null);
@@ -76,7 +82,14 @@ export function Board({ tiles, theme, players, canFlip, celebrating, onFlip }: P
 
   return (
     <div className="board-area" ref={areaRef} data-last-pair={lastPair || undefined}>
-      <div className="board" style={style} data-can-flip={canFlip} role="group" aria-label="Board">
+      <div
+        className="board"
+        style={style}
+        data-can-flip={canFlip && !paused}
+        data-paused={paused || undefined}
+        role="group"
+        aria-label="Board"
+      >
         {tiles.map((tile) => {
           const owner = tile.state === "matched" ? players.find((p) => p.id === tile.by) : undefined;
           return (
@@ -86,7 +99,7 @@ export function Board({ tiles, theme, players, canFlip, celebrating, onFlip }: P
               theme={theme}
               ownerSeat={owner?.seat ?? null}
               ownerName={owner?.name ?? null}
-              canFlip={canFlip}
+              canFlip={canFlip && !paused}
               onFlip={onFlip}
               celebrate={celebrating?.includes(tile.id) ?? false}
               zoomLean={lean(tile.id)}
@@ -94,6 +107,18 @@ export function Board({ tiles, theme, players, canFlip, celebrating, onFlip }: P
           );
         })}
       </div>
+      {paused ? (
+        <div className="board-paused" role="status">
+          <div className="board-paused-panel">
+            <p className="board-paused-title" data-testid="board-paused">
+              Game Paused
+            </p>
+            {pauseBar}
+          </div>
+        </div>
+      ) : (
+        cue
+      )}
     </div>
   );
 }

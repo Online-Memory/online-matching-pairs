@@ -32,6 +32,9 @@ browser ── GET /api/tables/ABC234?since=41 (every ~1s while playing) ──�
   (request, then accept) and lobby invites. Presence is a `last_seen_at` heartbeat sent every 30s from the layout;
   a friend counts as online for 75s after it. `GET /api/friends` is polled every 5s and carries no table state.
   Guests and deployments without Neon Auth get a 401 and no friends UI.
+- **Kick vote**: when a turn times out, that player's turn is held (it no longer passes on). The other players can
+  vote unanimously to kick them (`POST /api/tables/ABC234/vote-kick`); a kicked player becomes a spectator until the
+  game ends.
 - **Public tables**: a host can list a table at creation (`isPublic`, fixed afterwards, private by default). `games`
   mirrors `is_public`, `player_count` and `host_name` in the same save statement, and `GET /api/public-tables`
   (no sign-in, polled every 5s by the home page) lists public lobbies and games in progress from `games` alone:

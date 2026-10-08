@@ -114,7 +114,7 @@ describe("start", () => {
     const counts = new Map<number, number>();
     for (const t of s.board) counts.set(t.face, (counts.get(t.face) ?? 0) + 1);
     expect([...counts.values()].every((c) => c === 2)).toBe(true);
-    expect(s.turn).toEqual({ playerId: "p1", deadline: T0 + 20_000 });
+    expect(s.turn).toEqual({ playerId: "p1", deadline: T0 + 20_000, timedOut: false, kickVotes: [] });
   });
 
   it("solo practice is allowed", () => {
@@ -130,7 +130,7 @@ describe("flip", () => {
     s = act(s, "p1", { type: "flip", tileId: b }, T0 + 2000);
     expect(s.board[a]).toMatchObject({ state: "matched", by: "p1" });
     expect(s.players[0]).toMatchObject({ pairs: 1, moves: 1, streak: 1, bestStreak: 1 });
-    expect(s.turn).toEqual({ playerId: "p1", deadline: T0 + 2000 + 20_000 });
+    expect(s.turn).toEqual({ playerId: "p1", deadline: T0 + 2000 + 20_000, timedOut: false, kickVotes: [] });
   });
 
   it("a miss locks the board, then flips back and passes the turn", () => {
@@ -167,7 +167,7 @@ describe("flip", () => {
     expect(events.map((e) => e.type)).toEqual(["tiles_hidden", "turn_changed"]);
     expect(state.board[a]!.state).toBe("hidden");
     expect(state.lockUntil).toBeNull();
-    expect(state.turn).toEqual({ playerId: "p2", deadline: at + 20_000 });
+    expect(state.turn).toEqual({ playerId: "p2", deadline: at + 20_000, timedOut: false, kickVotes: [] });
   });
 
   it("repeated early dismissals cannot hide the pair before the minimum reveal time", () => {
@@ -217,44 +217,94 @@ describe("flip", () => {
 });
 
 describe("timeouts", () => {
-  it("timeout after one flip hides that tile and passes the turn", () => {
+  it("timeout after one flip keeps that tile face up and holds the turn on the same player", () => {
     let s = act(started(2), "p1", { type: "flip", tileId: 0 }, T0 + 1000);
     s = tick(s, T0 + 20_000).state;
-    expect(s.board[0]!.state).toBe("hidden");
-    expect(s.revealed).toEqual([]);
-    expect(s.turn).toEqual({ playerId: "p2", deadline: T0 + 40_000 });
+    expect(s.board[0]!.state).toBe("revealed");
+    expect(s.revealed).toEqual([0]);
+    expect(s.turn).toEqual({ playerId: "p1", deadline: null, timedOut: true, kickVotes: [] });
+    expect(s.abandonAt).toBe(T0 + 20_000 + RULES.allAwayAbandonMs);
   });
 
-  it("three consecutive timeouts mark a player away and skip them; joining again brings them back", () => {
-    let s = started(2, { turnSeconds: 10 });
-    // p1 never acts; p2 keeps playing by missing a pair each turn.
-    let now = T0;
-    for (let round = 0; round < 3; round++) {
-      now += 10_000;
-      s = tick(s, now).state; // p1 times out
-      for (const tileId of mismatch(s)) s = act(s, "p2", { type: "flip", tileId }, (now += 200));
-      now += RULES.mismatchLockMs;
-      s = tick(s, now).state;
-    }
-    const p1 = s.players.find((p) => p.id === "p1")!;
-    expect(p1.status).toBe("away");
-    expect(s.hostId).toBe("p2");
-    expect(s.turn?.playerId).toBe("p2");
-
-    s = act(s, "p1", { type: "join", identity: id(1) }, now);
-    expect(s.players.find((p) => p.id === "p1")!.status).toBe("active");
+  it("nobody else can flip while the turn is held", () => {
+    const s = tick(started(2), T0 + 20_000).state;
+    expectError(() => act(s, "p2", { type: "flip", tileId: 0 }, T0 + 21_000), "not_your_turn");
   });
 
-  it("catches up on many elapsed deadlines in one tick, ending abandoned", () => {
-    const s = started(3, { turnSeconds: 10 });
+  it("a timed-out player who flips resumes the turn with a fresh clock", () => {
+    let s = tick(started(2), T0 + 20_000).state;
+    s = act(s, "p1", { type: "flip", tileId: 0 }, T0 + 25_000);
+    expect(s.turn).toEqual({ playerId: "p1", deadline: T0 + 45_000, timedOut: false, kickVotes: [] });
+    expect(s.abandonAt).toBeNull();
+    expect(s.board[0]!.state).toBe("revealed");
+  });
+
+  it("the held tile stays face up until the player's second flip resolves the turn", () => {
+    let s = act(started(2), "p1", { type: "flip", tileId: 0 }, T0 + 1000);
+    s = tick(s, T0 + 20_000).state;
+    const other = s.board.findIndex((t, i) => i !== 0 && t.face !== s.board[0]!.face);
+    s = act(s, "p1", { type: "flip", tileId: other }, T0 + 25_000);
+    expect(s.revealed).toEqual([0, other]);
+    expect(s.lockUntil).not.toBeNull();
+  });
+
+  it("with nobody to vote, a timeout keeps the revealed tile and restarts the clock", () => {
+    let s = act(started(1), "p1", { type: "flip", tileId: 0 }, T0 + 1000);
+    s = tick(s, T0 + 20_000).state;
+    expect(s.revealed).toEqual([0]);
+    expect(s.board[0]!.state).toBe("revealed");
+    expect(s.turn).toEqual({ playerId: "p1", deadline: T0 + 40_000, timedOut: false, kickVotes: [] });
+  });
+
+  it("a solo player's timeout just restarts their turn (nobody to vote)", () => {
+    const s = tick(started(1), T0 + 20_000).state;
+    expect(s.turn).toEqual({ playerId: "p1", deadline: T0 + 40_000, timedOut: false, kickVotes: [] });
+    expect(s.abandonAt).toBeNull();
+  });
+
+  it("a solo player timing out repeatedly is marked away and the game is abandoned", () => {
+    const { state, events } = tick(started(1), T0 + 24 * 3_600_000);
+    expect(state.status).toBe("abandoned");
+    expect(events.filter((e) => e.type === "turn_timed_out")).toHaveLength(RULES.timeoutsBeforeAway);
+    expect(events.some((e) => e.type === "player_away")).toBe(true);
+    expect(events.at(-1)!.type).toBe("abandoned");
+    expect(events.at(-1)!.at).toBe(T0 + RULES.timeoutsBeforeAway * 20_000 + RULES.allAwayAbandonMs);
+  });
+
+  it("a flip resets the no-voter timeout counter", () => {
+    let s = tick(started(1), T0 + 40_000).state; // two timeouts
+    expect(s.players[0]!.timeouts).toBe(2);
+    s = act(s, "p1", { type: "flip", tileId: 0 }, T0 + 41_000);
+    expect(s.players[0]!.timeouts).toBe(0);
+    s = tick(s, T0 + 41_000 + 20_000).state; // one more timeout is not enough to go away
+    expect(s.players[0]!.status).toBe("active");
+    expect(s.players[0]!.timeouts).toBe(1);
+  });
+
+  it("the last player left after the others quit gets the same away-then-abandon fallback", () => {
+    const s = act(started(2), "p2", { type: "leave" }, T0 + 1000);
     const { state, events } = tick(s, T0 + 24 * 3_600_000);
     expect(state.status).toBe("abandoned");
-    expect(state.players.every((p) => p.status === "away")).toBe(true);
-    expect(events.filter((e) => e.type === "turn_timed_out")).toHaveLength(9);
-    // Events are stamped with the time each deadline fell due, not the time of the catch-up.
+    expect(events.some((e) => e.type === "player_away" && e.playerId === "p1")).toBe(true);
+    expect(events.at(-1)!.type).toBe("abandoned");
+  });
+
+  it("a held turn nobody resolves ends in abandonment", () => {
+    const { state, events } = tick(started(3, { turnSeconds: 10 }), T0 + 24 * 3_600_000);
+    expect(state.status).toBe("abandoned");
+    expect(events.filter((e) => e.type === "turn_timed_out")).toHaveLength(1);
     const abandoned = events.at(-1)!;
     expect(abandoned.type).toBe("abandoned");
-    expect(abandoned.at).toBe(T0 + 9 * 10_000 + RULES.allAwayAbandonMs);
+    expect(abandoned.at).toBe(T0 + 10_000 + RULES.allAwayAbandonMs);
+  });
+
+  it("the held player leaving starts a fresh turn and clears the abandon timer", () => {
+    let s = tick(started(3), T0 + 20_000).state;
+    expect(s.abandonAt).not.toBeNull();
+    s = act(s, "p1", { type: "leave" }, T0 + 21_000);
+    expect(s.abandonAt).toBeNull();
+    expect(s.turn?.playerId).toBe("p2");
+    expect(s.turn?.timedOut).toBe(false);
   });
 
   it("tick is a no-op before anything is due", () => {
@@ -343,6 +393,7 @@ const step = fc.oneof(
   fc.record({ kind: fc.constant("wait" as const), ms: fc.integer({ min: 0, max: 60_000 }) }),
   fc.record({ kind: fc.constant("leave" as const), actor: fc.integer({ min: 1, max: 3 }) }),
   fc.record({ kind: fc.constant("join" as const), actor: fc.integer({ min: 1, max: 3 }) }),
+  fc.record({ kind: fc.constant("vote" as const), actor: fc.integer({ min: 1, max: 3 }) }),
 );
 
 type Step = typeof step extends fc.Arbitrary<infer T> ? T : never;
@@ -364,6 +415,7 @@ function run(seed: number, steps: Step[]) {
       if (st.kind === "flip") s = act(s, `p${st.actor}`, { type: "flip", tileId: st.tile }, now);
       if (st.kind === "leave") s = act(s, `p${st.actor}`, { type: "leave" }, now);
       if (st.kind === "join") s = act(s, `p${st.actor}`, { type: "join", identity: id(st.actor) }, now);
+      if (st.kind === "vote") s = act(s, `p${st.actor}`, { type: "vote_kick" }, now);
     } catch (e) {
       if (!(e instanceof EngineError)) throw e;
     }
@@ -396,6 +448,14 @@ describe("invariants", () => {
           expect(revealed).toBeLessThanOrEqual(2);
           expect(revealed).toBe(s.revealed.length);
           if (s.status === "playing") expect(s.turn !== null || s.abandonAt !== null).toBe(true);
+          if (s.status === "playing" && s.turn) {
+            // Only active players hold the turn (a leaver keeps it until the flip-back lock expires),
+            // and the clock is off exactly while the turn is held.
+            if (s.lockUntil === null) {
+              expect(s.players.find((p) => p.id === s.turn!.playerId)!.status).toBe("active");
+            }
+            expect(s.turn.deadline === null).toBe(s.turn.timedOut);
+          }
           // Redacted view leaks no hidden faces.
           for (const tile of toView(s, "p1").tiles) {
             if (tile.state === "hidden") expect(Object.keys(tile).sort()).toEqual(["id", "state"]);
@@ -497,7 +557,7 @@ describe("pause", () => {
 
   it("shifts the turn deadline by the paused time when it auto-resumes", () => {
     const s = started(2, { turnSeconds: 20 });
-    const deadline = s.turn!.deadline; // T0 + 20_000
+    const deadline = s.turn!.deadline!; // T0 + 20_000
     const paused = act(s, "p2", { type: "pause" }, T0 + 5_000);
     const { state, events } = tick(paused, T0 + 5_000 + MIN + 10);
     expect(state.pause).toBeNull();
@@ -511,7 +571,7 @@ describe("pause", () => {
     const paused = act(s, "p1", { type: "pause" }, T0 + 5_000);
     const resumed = act(paused, "p1", { type: "resume" }, T0 + 15_000);
     expect(resumed.pause).toBeNull();
-    expect(resumed.turn!.deadline).toBe(s.turn!.deadline + 10_000);
+    expect(resumed.turn!.deadline).toBe(s.turn!.deadline! + 10_000);
   });
 
   it("never moves deadlines backwards when a resume's clock reads earlier than the pause's", () => {
@@ -590,5 +650,134 @@ describe("pause", () => {
     const parsed = gameStateSchema.parse(legacy);
     expect(parsed.pause).toBeNull();
     expect(parsed.players.every((p) => p.pausesUsed === 0)).toBe(true);
+  });
+});
+
+describe("kick vote", () => {
+  const vote = (s: GameState, who: string, now = T0 + 21_000) => act(s, who, { type: "vote_kick" }, now);
+  /** A game where p1's turn timed out and is being held. */
+  const held = (players = 3) => tick(started(players), T0 + 20_000).state;
+
+  it("a partial vote changes nothing but the tally", () => {
+    const s = vote(held(), "p2");
+    expect(s.players.find((p) => p.id === "p1")!.status).toBe("active");
+    expect(s.turn).toEqual({ playerId: "p1", deadline: null, timedOut: true, kickVotes: ["p2"] });
+  });
+
+  it("a repeated vote is not counted twice", () => {
+    const s = vote(vote(held(), "p2"), "p2");
+    expect(s.turn!.kickVotes).toEqual(["p2"]);
+  });
+
+  it("a unanimous vote kicks the player and passes the turn", () => {
+    const { state, events } = applyAction(
+      vote(held(), "p2"),
+      "p3",
+      { type: "vote_kick" },
+      T0 + 22_000,
+      seededRng(1),
+    );
+    expect(state.players.find((p) => p.id === "p1")!.status).toBe("kicked");
+    expect(state.turn).toEqual({ playerId: "p2", deadline: T0 + 42_000, timedOut: false, kickVotes: [] });
+    expect(state.abandonAt).toBeNull();
+    expect(events.map((e) => e.type)).toEqual(["kick_vote", "player_kicked", "host_changed", "turn_changed"]);
+  });
+
+  it("the timed-out player cannot vote, and nobody can vote without a held turn", () => {
+    expectError(() => vote(held(), "p1"), "kick_unavailable");
+    expectError(() => vote(started(3), "p2"), "kick_unavailable");
+    expectError(() => act(lobby(3), "p2", { type: "vote_kick" }, T0), "not_playing");
+  });
+
+  it("kicking the player turns their held tile face down", () => {
+    let s = act(started(3), "p1", { type: "flip", tileId: 0 }, T0 + 1000);
+    s = vote(vote(tick(s, T0 + 20_000).state, "p2"), "p3");
+    expect(s.players.find((p) => p.id === "p1")!.status).toBe("kicked");
+    expect(s.revealed).toEqual([]);
+    expect(s.board[0]!.state).toBe("hidden");
+  });
+
+  it("the target flipping cancels the vote", () => {
+    const s = act(vote(held(), "p2"), "p1", { type: "flip", tileId: 0 }, T0 + 25_000);
+    expect(s.turn).toEqual({ playerId: "p1", deadline: T0 + 45_000, timedOut: false, kickVotes: [] });
+  });
+
+  it("a kicked player is a spectator: cannot flip, pause or vote, and rejoining changes nothing", () => {
+    const s = vote(vote(held(), "p2"), "p3");
+    expectError(() => act(s, "p1", { type: "flip", tileId: 0 }, T0 + 23_000), "kicked");
+    expectError(() => act(s, "p1", { type: "pause" }, T0 + 23_000), "kicked");
+    expectError(() => act(s, "p1", { type: "vote_kick" }, T0 + 23_000), "kicked");
+    const rejoined = act(s, "p1", { type: "join", identity: id(1) }, T0 + 23_000);
+    expect(rejoined.players.find((p) => p.id === "p1")!.status).toBe("kicked");
+  });
+
+  it("turn order skips the kicked player", () => {
+    let s = vote(vote(held(), "p2"), "p3");
+    let now = T0 + 23_000;
+    for (const expected of ["p3", "p2"]) {
+      const who = s.turn!.playerId;
+      for (const tileId of mismatch(s)) s = act(s, who, { type: "flip", tileId }, (now += 200));
+      now += RULES.mismatchLockMs;
+      s = tick(s, now).state;
+      expect(s.turn!.playerId).toBe(expected);
+    }
+  });
+
+  it("kicked players keep their pairs and are ranked with everyone", () => {
+    expect(toView(vote(vote(held(), "p2"), "p3"), "p2").players.map((p) => p.status)).toEqual([
+      "kicked",
+      "active",
+      "active",
+    ]);
+  });
+
+  it("hands the host over when the host is kicked", () => {
+    const s = vote(vote(held(), "p2"), "p3");
+    expect(s.hostId).toBe("p2");
+  });
+
+  it("completes the kick when the last holdout leaves", () => {
+    const s = act(vote(held(), "p2"), "p3", { type: "leave" }, T0 + 22_000);
+    expect(s.players.find((p) => p.id === "p1")!.status).toBe("kicked");
+    expect(s.turn!.playerId).toBe("p2");
+  });
+
+  it("carries on with a fresh turn when every possible voter has left", () => {
+    const s = act(held(2), "p2", { type: "leave" }, T0 + 21_000);
+    expect(s.players.find((p) => p.id === "p1")!.status).toBe("active");
+    expect(s.turn).toEqual({ playerId: "p1", deadline: T0 + 41_000, timedOut: false, kickVotes: [] });
+    expect(s.abandonAt).toBeNull();
+  });
+
+  it("freezes the vote while paused, and a pause over a held turn leaves it held", () => {
+    let s = act(held(), "p2", { type: "pause" }, T0 + 21_000);
+    expectError(() => vote(s, "p3", T0 + 22_000), "paused");
+    s = act(s, "p2", { type: "resume" }, T0 + 30_000);
+    expect(s.turn).toMatchObject({ playerId: "p1", deadline: null, timedOut: true });
+    expect(s.abandonAt).toBe(T0 + 20_000 + RULES.allAwayAbandonMs + 9_000);
+  });
+
+  it("toView exposes the tally and who may vote, never the voter list", () => {
+    const s = vote(held(), "p2");
+    const p2 = toView(s, "p2");
+    expect(p2.kickVote).toEqual({ targetId: "p1", votes: 1, needed: 2, youVoted: true });
+    expect(p2.canVoteKick).toBe(false);
+    expect(toView(s, "p3").canVoteKick).toBe(true);
+    expect(toView(s, "p1").canVoteKick).toBe(false);
+    expect(toView(s, null).canVoteKick).toBe(false);
+    expect(p2.turn).toEqual({ playerId: "p1", deadline: null, timedOut: true });
+    expect(toView(started(3), "p2").kickVote).toBeNull();
+  });
+
+  it("still parses a state saved before the vote existed", () => {
+    const old = structuredClone(started(2)) as unknown as {
+      turn: Record<string, unknown>;
+      players: Record<string, unknown>[];
+    };
+    delete old.turn.timedOut;
+    delete old.turn.kickVotes;
+    old.players[0]!.timeouts = 2;
+    const parsed = gameStateSchema.parse(old);
+    expect(parsed.turn).toMatchObject({ timedOut: false, kickVotes: [] });
   });
 });

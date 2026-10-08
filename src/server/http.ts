@@ -22,6 +22,8 @@ const STATUS: Record<ErrorCode, number> = {
   paused: 409,
   pause_unavailable: 409,
   not_pauser: 403,
+  kick_unavailable: 409,
+  kicked: 403,
   not_playing: 409,
   rate_limited: 429,
   conflict: 503,

@@ -5,16 +5,19 @@ import { Fragment, useEffect, useRef, useState } from "react";
 
 import { finishMessage } from "@/lib/client/finish-message";
 import { BURST_COUNT, streakTier, type StreakTier } from "@/lib/client/streak-tier";
+import { useIdleLevel } from "@/lib/client/use-idle-level";
 import { useMe } from "@/lib/client/use-me";
 import { useTable } from "@/lib/client/use-table";
 import type { PublicEvent, TableView } from "@/lib/protocol";
 
 import { Board } from "./Board";
+import { BoardCue } from "./BoardCue";
 import { Button } from "./Button";
 import { CELEBRATION_MS, Confetti, ConfettiBurst } from "./Confetti";
 import { FinishBanner } from "./FinishBanner";
 import { FlipBackBar } from "./FlipBackBar";
 import { Lobby } from "./Lobby";
+import { KickVoteBar } from "./KickVoteBar";
 import { PauseBar } from "./PauseBar";
 import { Results } from "./Results";
 import { Scoreboard } from "./Scoreboard";
@@ -27,6 +30,7 @@ export function TableScreen({ code, autoJoin = false }: { code: string; autoJoin
   const table = useTable(code);
   const me = useMe();
   const { view, actionError, clearActionError } = table;
+  const idleLevel = useIdleLevel(view, table.serverOffset);
 
   useEffect(() => {
     if (!actionError) return;
@@ -180,7 +184,7 @@ export function TableScreen({ code, autoJoin = false }: { code: string; autoJoin
   const revealedCount = view.tiles.filter((t) => t.state === "revealed").length;
   const canFlip = myTurn && revealedCount < 2 && !table.pending;
 
-  // In a running game the bar lives in the side column so the board gets the full height.
+  // Outside the lobby the bar sits above the board, in the board's column.
   const tableBar = (
     <header className="table-bar">
       <h1 className="table-title">
@@ -209,6 +213,12 @@ export function TableScreen({ code, autoJoin = false }: { code: string; autoJoin
     </header>
   );
 
+  const statusLine = (
+    <p className="status-line" role="status" data-testid="status-line">
+      {statusText(view, myTurn)}
+    </p>
+  );
+
   return (
     <main className="page table-page" data-status={view.status} data-my-turn={myTurn}>
       {view.status === "lobby" && tableBar}
@@ -225,24 +235,25 @@ export function TableScreen({ code, autoJoin = false }: { code: string; autoJoin
         />
       ) : (
         <div className="table-layout">
-          <div className="table-side">
+          <div className="table-head">
             {tableBar}
-            <Scoreboard view={view} serverOffset={table.serverOffset} />
-            <p className="status-line" role="status" data-testid="status-line">
-              {statusText(view, myTurn)}
-            </p>
+            {view.status === "finished" && statusLine}
+          </div>
+          <div className="table-side">
+            <Scoreboard view={view} serverOffset={table.serverOffset} idleLevel={idleLevel} />
+            {view.status !== "finished" && statusLine}
             {view.tiles.some((t) => t.state === "hidden" && t.peek !== undefined) && (
               <p className="status-line" data-testid="cheat-badge">
                 Cheat mode: face-down tiles are shown faintly
               </p>
             )}
-            {view.pause && (
-              <PauseBar
-                view={view}
-                serverOffset={table.serverOffset}
-                pending={table.pending}
-                onResume={() => void table.resume()}
-              />
+            {view.status === "playing" && !view.pause && (
+              <KickVoteBar view={view} pending={table.pending} onVote={() => void table.voteKick()} />
+            )}
+            {you?.status === "kicked" && view.status === "playing" && (
+              <div className="notice-block">
+                <p>The other players voted you out of this game. You can keep watching until it ends.</p>
+              </div>
             )}
             {view.status === "playing" && view.lockUntil !== null && !view.pause && (
               <FlipBackBar
@@ -279,9 +290,28 @@ export function TableScreen({ code, autoJoin = false }: { code: string; autoJoin
             theme={view.theme}
             players={view.players}
             canFlip={canFlip}
+            paused={!!view.pause}
+            pauseBar={
+              view.pause && (
+                <PauseBar
+                  view={view}
+                  serverOffset={table.serverOffset}
+                  pending={table.pending}
+                  onResume={() => void table.resume()}
+                />
+              )
+            }
             celebrating={celebrating}
             onFlip={(id) => void table.flip(id)}
+            cue={myTurn && !view.turn?.timedOut ? <BoardCue level={idleLevel} /> : undefined}
           />
+          {view.status === "finished" && (
+            <div className="table-actions">
+              <Link className="button" href="/">
+                Set up another table
+              </Link>
+            </div>
+          )}
           <div className="table-foot">
             {view.status === "playing" && <Spotlight view={view} />}
             <p className="activity" aria-live="polite">
@@ -326,6 +356,11 @@ function statusText(view: TableView, myTurn: boolean) {
   if (view.lockUntil !== null) {
     return view.turn?.playerId === view.youId ? "No match. Flipping back…" : "No match. Flipping back…";
   }
+  if (view.turn?.timedOut) {
+    return view.turn.playerId === view.youId
+      ? "You ran out of time. Flip a tile to carry on."
+      : `${nameOf(view, view.turn.playerId)} ran out of time`;
+  }
   if (!view.turn) return "Waiting for players to come back";
   if (myTurn) return "Your turn. Flip two tiles.";
   return `${nameOf(view, view.turn.playerId)}'s turn`;
@@ -350,6 +385,10 @@ function describe(event: PublicEvent | undefined, view: TableView): string {
       return `${nameOf(view, event.playerId)} paused the game`;
     case "resumed":
       return "Game resumed";
+    case "kick_vote":
+      return `${nameOf(view, event.playerId)} voted to kick ${view.turn?.timedOut ? nameOf(view, view.turn.playerId) : "a player"}`;
+    case "player_kicked":
+      return `${nameOf(view, event.playerId)} was voted out of the game`;
     case "host_changed":
       return `${nameOf(view, event.playerId)} is now the host`;
     default:

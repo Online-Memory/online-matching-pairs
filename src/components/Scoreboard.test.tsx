@@ -88,3 +88,45 @@ describe("Scoreboard streaks", () => {
     expect(screen.queryByText(/^x\d/)).toBeNull();
   });
 });
+
+describe("Scoreboard kicked and held turns", () => {
+  it("labels a kicked player and shows no timer for a held turn", () => {
+    const held = {
+      ...view([player({ status: "kicked" as PlayerView["status"] })]),
+      turn: { playerId: "a", deadline: null, timedOut: true },
+    } as unknown as TableView;
+    render(<Scoreboard view={held} serverOffset={0} />);
+    expect(screen.getByText("Kicked")).toBeTruthy();
+    expect(screen.queryByRole("timer")).toBeNull();
+  });
+});
+
+describe("Scoreboard idle warning", () => {
+  const myTurn = (over: Partial<TableView> = {}) =>
+    ({
+      ...view([player({ id: "a" }), player({ id: "b", name: "Bob", seat: 1 })]),
+      turn: { playerId: "a", deadline: Date.now() + 8_000, timedOut: false },
+      ...over,
+    }) as unknown as TableView;
+
+  it("marks only the idle viewer's own row, with the level", () => {
+    render(<Scoreboard view={myTurn()} serverOffset={0} idleLevel={1} />);
+    expect(seat()).toHaveAttribute("data-idle", "1");
+    expect(screen.getByTestId("seat-Bob")).not.toHaveAttribute("data-idle");
+  });
+
+  it("carries the stronger level and turns the timer urgent even with plenty of time left", () => {
+    const v = myTurn({ turn: { playerId: "a", deadline: Date.now() + 15_000, timedOut: false } });
+    const { rerender } = render(<Scoreboard view={v} serverOffset={0} idleLevel={0} />);
+    expect(screen.getByRole("timer")).toHaveAttribute("data-urgent", "false");
+    rerender(<Scoreboard view={v} serverOffset={0} idleLevel={2} />);
+    expect(seat()).toHaveAttribute("data-idle", "2");
+    expect(screen.getByRole("timer")).toHaveAttribute("data-urgent", "true");
+  });
+
+  it("ignores the idle level on another player's turn", () => {
+    const v = myTurn({ turn: { playerId: "b", deadline: Date.now() + 8_000, timedOut: false } });
+    render(<Scoreboard view={v} serverOffset={0} idleLevel={2} />);
+    expect(seat()).not.toHaveAttribute("data-idle");
+  });
+});

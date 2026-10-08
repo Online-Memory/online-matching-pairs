@@ -99,7 +99,7 @@ describe("TableService", () => {
     now += 61_000;
     const after = (await service.poll(code, alice.playerId, paused.view.seq)) as SnapshotResponse;
     expect(after.view.pause).toBeNull();
-    expect(after.view.turn!.deadline).toBe(deadline + 60_000);
+    expect(after.view.turn!.deadline).toBe(deadline! + 60_000);
     expect(after.events.map((e) => e.type)).toEqual(["resumed"]);
   });
 
@@ -154,8 +154,36 @@ describe("TableService", () => {
 
     now += settings.turnSeconds * 1000;
     const after = (await service.poll(code, bob.playerId, before.view.seq)) as SnapshotResponse;
-    expect(after.events.map((e) => e.type)).toEqual(["turn_timed_out", "turn_changed"]);
-    expect(after.view.turn).toEqual({ playerId: "g_bob", deadline: now + settings.turnSeconds * 1000 });
+    expect(after.events.map((e) => e.type)).toEqual(["turn_timed_out"]);
+    expect(after.view.turn).toEqual({ playerId: "u_alice", deadline: null, timedOut: true });
+  });
+
+  it("holds a timed-out turn and kicks the player once everyone else votes", async () => {
+    const code = await startedTable([alice, bob, carol]);
+    now += settings.turnSeconds * 1000;
+    const held = (await service.poll(code, bob.playerId, -1)) as SnapshotResponse;
+    expect(held.view.turn).toEqual({ playerId: "u_alice", deadline: null, timedOut: true });
+    expect(held.view.canVoteKick).toBe(true);
+
+    await service.act(code, bob, { type: "vote_kick" }, held.view.seq);
+    const done = await service.act(code, carol, { type: "vote_kick" }, held.view.seq);
+    expect(done.events.map((e) => e.type)).toEqual([
+      "kick_vote",
+      "kick_vote",
+      "player_kicked",
+      "host_changed",
+      "turn_changed",
+    ]);
+    expect(done.view.players.find((p) => p.id === "u_alice")?.status).toBe("kicked");
+    expect(done.view.turn?.playerId).toBe("g_bob");
+    await expect(service.act(code, alice, { type: "flip", tileId: 0 }, -1)).rejects.toMatchObject({
+      code: "kicked",
+    });
+    // The kicked player's view of the table never contains a face-down tile's face.
+    const asAlice = (await service.poll(code, alice.playerId, -1)) as SnapshotResponse;
+    expect(
+      asAlice.view.tiles.filter((t) => t.state === "hidden").every((t) => Object.keys(t).length === 2),
+    ).toBe(true);
   });
 
   it("concurrent flips: compare-and-set makes the loser retry against the winner's state", async () => {

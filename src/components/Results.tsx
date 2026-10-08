@@ -1,5 +1,3 @@
-import Link from "next/link";
-
 import { computeAwards } from "@/lib/client/awards";
 import type { TableView } from "@/lib/protocol";
 
@@ -28,7 +26,7 @@ export function Results({ view }: { view: TableView }) {
   return (
     <section className="results" aria-live="polite">
       <h2>{headline}</h2>
-      <Podium players={view.players} />
+      <Podium players={view.players} youId={view.youId} />
       <table>
         <thead>
           <tr>
@@ -41,10 +39,11 @@ export function Results({ view }: { view: TableView }) {
         </thead>
         <tbody>
           {ranked.map((p) => (
-            <tr key={p.id} data-seat={p.seat}>
+            <tr key={p.id} data-seat={p.seat} data-you={p.id === view.youId || undefined}>
               <td>{p.rank ? ordinal(p.rank) : "–"}</td>
               <td>
                 <span className="seat-token" aria-hidden /> {p.name}
+                {p.id === view.youId && <span className="seat-note"> (you)</span>}
                 <AwardChips awards={awards[p.id] ?? []} />
               </td>
               <td>{p.pairs}</td>
@@ -56,9 +55,6 @@ export function Results({ view }: { view: TableView }) {
       </table>
       <RatingChange code={view.code} versus={view.players.length >= 2} />
       <XpGain code={view.code} />
-      <Link className="button" href="/">
-        Set up another table
-      </Link>
     </section>
   );
 }

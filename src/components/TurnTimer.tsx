@@ -2,13 +2,20 @@
 
 import { useEffect, useState, type CSSProperties } from "react";
 
-type Props = { deadline: number; totalSeconds: number; serverOffset: number; frozenAt?: number };
+type Props = {
+  deadline: number;
+  totalSeconds: number;
+  serverOffset: number;
+  frozenAt?: number;
+  /** Forces the red, throbbing look before the last seconds, e.g. while the player is idle. */
+  urgent?: boolean;
+};
 
 /**
  * Renders the server's deadline. The server alone decides when a turn has actually expired.
  * `frozenAt` (server time) holds the countdown still while the game is paused.
  */
-export function TurnTimer({ deadline, totalSeconds, serverOffset, frozenAt }: Props) {
+export function TurnTimer({ deadline, totalSeconds, serverOffset, frozenAt, urgent = false }: Props) {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 250);
@@ -22,7 +29,7 @@ export function TurnTimer({ deadline, totalSeconds, serverOffset, frozenAt }: Pr
   return (
     <span
       className="turn-timer"
-      data-urgent={seconds <= 5}
+      data-urgent={urgent || seconds <= 5}
       style={{ "--fraction": fraction } as CSSProperties}
       role="timer"
       aria-label={`${seconds} seconds left`}

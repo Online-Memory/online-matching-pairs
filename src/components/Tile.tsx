@@ -14,7 +14,7 @@ type Props = {
   onFlip: (tileId: number) => void;
   /** Just matched: plays the pair celebration (visual only). */
   celebrate?: boolean;
-  /** Which way the hover zoom should lean to stay inside the board: -1, 0 or 1 per axis (layout only). */
+  /** Which way the zoom of a revealed tile should lean to stay inside the board: -1, 0 or 1 per axis (layout only). */
   zoomLean?: { x: number; y: number };
 };
 

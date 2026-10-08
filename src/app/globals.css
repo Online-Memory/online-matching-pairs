@@ -628,8 +628,40 @@ a {
   color: var(--ink);
 }
 
+.seat {
+  transition: box-shadow 200ms ease;
+}
+
+/* The viewer's own seat: an accent border and a bolder name, in the turn colour or not. */
+.seat[data-you="true"] {
+  border-color: var(--link);
+  box-shadow: inset 0.3rem 0 0 var(--link);
+}
+
+.seat[data-you="true"] .seat-name,
+.seat[data-you="true"] .seat-note {
+  font-weight: 800;
+  color: var(--ink);
+}
+
+/* Whoever is on the clock stands out from the list with a glow (no transform: the side panel scrolls, so
+   anything sticking out of it would add a horizontal scrollbar). */
+.seat[data-turn="true"] {
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--signal) 45%, transparent),
+    0 0.4rem 1.25rem color-mix(in srgb, var(--signal) 55%, transparent);
+}
+
+.seat[data-turn="true"][data-you="true"] {
+  box-shadow:
+    inset 0.3rem 0 0 var(--link),
+    0 0 0 3px color-mix(in srgb, var(--signal) 45%, transparent),
+    0 0.4rem 1.25rem color-mix(in srgb, var(--signal) 55%, transparent);
+}
+
 .seat[data-status="away"],
-.seat[data-status="left"] {
+.seat[data-status="left"],
+.seat[data-status="kicked"] {
   opacity: 0.55;
 }
 
@@ -741,6 +773,118 @@ a {
   }
 }
 
+/* The player on the clock: a cue over the board that gets louder the longer they sit still. */
+.board-area {
+  position: relative;
+}
+
+.board[data-paused="true"] {
+  opacity: 0.35;
+  filter: grayscale(0.6);
+  pointer-events: none;
+  user-select: none;
+}
+
+.board-paused {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  pointer-events: none;
+}
+
+/* A solid card keeps the text readable whatever the tiles behind it look like. */
+.board-paused-panel {
+  display: grid;
+  justify-items: center;
+  gap: 1rem;
+  width: min(28rem, 100%);
+  padding: 1.5rem 1.25rem;
+  border-radius: 1rem;
+  background: var(--card);
+  color: var(--ink);
+  text-align: center;
+  box-shadow: 0 0.5rem 2rem color-mix(in srgb, #000 40%, transparent);
+}
+
+.board-paused-title {
+  margin: 0;
+  font-size: clamp(1.75rem, 6vw, 3rem);
+  font-weight: 800;
+}
+
+.board-paused .pause-bar {
+  width: 100%;
+  margin: 0;
+  font-size: 1.05rem;
+  pointer-events: auto;
+}
+
+.board-cue {
+  position: absolute;
+  top: 0.5rem;
+  left: 50%;
+  translate: -50% 0;
+  z-index: 5;
+  margin: 0;
+  max-width: calc(100% - 1rem);
+  padding: 0.35rem 0.9rem;
+  border-radius: 999px;
+  background: var(--signal);
+  color: var(--on-signal);
+  font-weight: 700;
+  text-align: center;
+  pointer-events: none;
+  box-shadow: 0 0.25rem 1rem color-mix(in srgb, #000 25%, transparent);
+}
+
+.board-cue[data-level="1"] {
+  color: var(--danger-on-signal);
+}
+
+.board-cue[data-level="2"] {
+  background: var(--danger-on-signal);
+  color: #fff;
+  font-size: 1.05rem;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .seat[data-idle="1"] {
+    animation: idle-shake 0.6s ease-in-out;
+  }
+  .seat[data-idle="2"] {
+    animation: idle-shake-hard 0.8s ease-in-out;
+  }
+  .board-cue[data-level="2"] {
+    animation: timer-urgent 0.5s ease-in-out infinite alternate;
+  }
+}
+
+@keyframes idle-shake {
+  20%,
+  60% {
+    translate: -5px 0;
+  }
+  40%,
+  80% {
+    translate: 5px 0;
+  }
+}
+
+@keyframes idle-shake-hard {
+  10%,
+  50%,
+  90% {
+    translate: -9px 0;
+  }
+  30%,
+  70% {
+    translate: 9px 0;
+  }
+}
+
 /* Tension: the board breathes when one pair is left, and the turn timer throbs in its last 5 seconds. */
 @media (prefers-reduced-motion: no-preference) {
   .board-area[data-last-pair="true"] .board {
@@ -800,6 +944,18 @@ a {
   min-height: 1.5em;
 }
 
+.table-head .status-line {
+  margin: 0 0 0.5rem;
+  font-size: clamp(1.75rem, 4vw, 2.75rem);
+  line-height: 1.1;
+  text-align: center;
+  color: var(--signal);
+  /* The yellow is faint on the light theme's pale page, so a dark edge keeps it readable. */
+  text-shadow:
+    0 0 1px #1a2238,
+    0 0.06em 0.12em color-mix(in srgb, #1a2238 70%, transparent);
+}
+
 .flip-back {
   margin: 0 0 0.75rem;
 }
@@ -823,6 +979,17 @@ a {
   gap: 0.5rem;
   margin: 0 0 0.75rem;
   font-weight: 700;
+}
+
+.kick-bar {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0 0 0.75rem;
+  font-weight: 700;
+}
+
+.kick-bar p {
+  margin: 0;
 }
 
 .pause-bar-track {
@@ -936,6 +1103,7 @@ a {
 }
 
 .tile-inner {
+  --face-scale: 0.95; /* the picture sits slightly inside the tile */
   position: relative;
   display: block;
   width: 100%;
@@ -971,7 +1139,7 @@ a {
 
 .tile-face {
   object-fit: cover; /* the hero uses an <img> here */
-  transform: rotateY(180deg);
+  transform: rotateY(180deg) scale(var(--face-scale));
   background-color: var(--card);
   background-repeat: no-repeat; /* the sprite image, size and position are set inline per face */
 }
@@ -994,8 +1162,8 @@ a {
 /* Found pairs recede so the face-down tiles stay the focus; a small dot in the owner's colour says
    whose pair it is. */
 .tile[data-state="matched"] .tile-face {
-  opacity: 0.9;
-  filter: saturate(0.6) brightness(0.8) contrast(0.8);
+  opacity: 0.4;
+  filter: saturate(0.2) brightness(0.75) contrast(0.7) grayscale(0.7);
 }
 
 .tile[data-state="matched"] .tile-inner::after {
@@ -1264,15 +1432,30 @@ a {
   display: none;
 }
 
+.table-actions {
+  margin-top: 15px;
+}
+
 /*
  * Wide screens: the table fills the viewport, scores sit beside the board, and the board
  * (see Board.tsx, fitGrid) sizes its tiles to the space left so it never scrolls.
  */
-@media (min-width: 64rem) and (min-height: 32rem) {
+@media (min-width: 64rem) and (min-height: 32rem),
+  (orientation: landscape) and (min-width: 40rem) and (min-height: 20rem) {
+  /* The page takes whatever height the header and any banners leave, instead of subtracting a guessed
+     header height (which was a few pixels short and made the whole page scroll). */
+  body:has(.table-page) {
+    display: flex;
+    flex-direction: column;
+    height: 100dvh;
+  }
+
   .table-page {
     display: flex;
     flex-direction: column;
-    height: calc(100dvh - 3.75rem);
+    flex: 1;
+    min-height: 0;
+    width: 100%;
     padding-bottom: 1rem;
   }
 
@@ -1281,25 +1464,48 @@ a {
     min-height: 0;
     display: grid;
     grid-template-columns: minmax(0, 1fr) 21rem;
-    grid-template-rows: minmax(0, 1fr) auto;
+    grid-template-rows: auto minmax(0, 1fr) auto;
     column-gap: 1.25rem;
+  }
+
+  /* Once the game is over the side panel holds the results, so it gets more room than the board. */
+  .table-page[data-status="finished"] .table-layout {
+    grid-template-columns: minmax(0, 1fr) minmax(21rem, 40%);
+  }
+
+  .table-head {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .table-actions {
+    grid-column: 1;
+    grid-row: 3;
   }
 
   .table-side {
     grid-column: 2;
-    grid-row: 1;
+    grid-row: 1 / span 2;
     min-height: 0;
     overflow-y: auto;
   }
 
+  /* A trailing margin counts as scrollable overflow, which put a scrollbar on a panel whose content
+     was fully visible. */
+  .table-side > :last-child,
+  .table-side .results,
+  .table-side .results > :last-child {
+    margin-bottom: 0;
+  }
+
   .table-foot {
     grid-column: 2;
-    grid-row: 2;
+    grid-row: 3;
   }
 
   .board-area {
     grid-column: 1;
-    grid-row: 1 / span 2;
+    grid-row: 2;
     min-width: 0;
     min-height: 0;
     display: grid;
@@ -1351,21 +1557,24 @@ a {
     background-repeat: no-repeat;
   }
 
-  /* Let a mouse user take a closer look at any face-up tile while the game is on. */
-  @media (hover: hover) {
-    .table-page[data-status="playing"] .tile:not([data-state="hidden"]):hover {
-      z-index: 5;
-    }
-    .table-page[data-status="playing"] .tile:not([data-state="hidden"]):hover .tile-inner {
-      /* Zooming grows a tile by (scale - 1) / 2 of its size on each side; edge tiles lean inward by that much. */
-      --zoom-scale: 1.2;
-      --zoom-shift: calc((var(--zoom-scale) - 1) / 2 * 100%);
-      transform: translate(
-          calc(var(--zoom-x, 0) * var(--zoom-shift)),
-          calc(var(--zoom-y, 0) * var(--zoom-shift))
-        )
-        rotateY(180deg) scale(var(--zoom-scale));
-    }
+  /* A tile the player just turned over zooms in as it flips and stays zoomed until the turn ends
+     (the server then flips it back or marks it matched). Hovering does nothing. */
+  .table-page[data-status="playing"] .tile[data-state="revealed"] {
+    z-index: 5;
+  }
+  .table-page[data-status="playing"] .tile[data-state="revealed"] .tile-inner {
+    /* A zoomed tile is 1.2x a face-down one: the picture fills the tile (instead of the usual --face-scale) and
+       the tile grows by (zoom - 1) / 2 on each side, so edge tiles shift inward by that much and end up
+       exactly on the board's edge. */
+    --face-scale: 1;
+    --zoom-scale: 1.05;
+    --zoom-shift: calc((var(--face-scale) * var(--zoom-scale) - 1) / 2 * 100%);
+    transform: translate(
+        calc(var(--zoom-x, 0) * var(--zoom-shift)),
+        calc(var(--zoom-y, 0) * var(--zoom-shift))
+      )
+      rotateY(180deg) scale(var(--zoom-scale));
+    box-shadow: 0 0 20px 0 var(--signal);
   }
 }
 
@@ -1458,6 +1667,16 @@ a {
   text-align: left;
   padding: 0.375rem 0.75rem 0.375rem 0;
   border-bottom: 1px solid var(--line);
+}
+
+.results tr[data-you="true"] td {
+  background: color-mix(in srgb, var(--link) 14%, transparent);
+  font-weight: 800;
+}
+
+.results tr[data-you="true"] td:first-child {
+  padding-left: 0.5rem;
+  box-shadow: inset 0.3rem 0 0 var(--link);
 }
 
 .results th {
@@ -2082,6 +2301,17 @@ a {
 }
 .podium-step[data-place="3"] {
   min-height: 4.25rem;
+}
+
+.podium-step[data-you="true"] {
+  border-color: var(--link);
+  box-shadow: 0 0 0 2px var(--link);
+  background: color-mix(in srgb, var(--link) 12%, var(--card));
+}
+
+.podium-you {
+  font-weight: 800;
+  color: var(--link);
 }
 
 .podium-names {

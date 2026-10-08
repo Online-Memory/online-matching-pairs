@@ -80,6 +80,7 @@ export const api = {
   dismiss: (code: string, since: number) => post<SnapshotResponse>(table(code, "dismiss", since)),
   pause: (code: string, since: number) => post<SnapshotResponse>(table(code, "pause", since)),
   resume: (code: string, since: number) => post<SnapshotResponse>(table(code, "resume", since)),
+  voteKick: (code: string, since: number) => post<SnapshotResponse>(table(code, "vote-kick", since)),
   leave: (code: string, since: number) => post<SnapshotResponse>(table(code, "leave", since)),
   publicTables: () => request<PublicTablesResponse>("/api/public-tables"),
   me: () => request<MeResponse>("/api/me"),

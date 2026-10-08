@@ -21,6 +21,7 @@ export type Action =
   | { type: "dismiss" }
   | { type: "pause" }
   | { type: "resume" }
+  | { type: "vote_kick" }
   | { type: "leave" };
 
 export type EngineResult = { state: GameState; events: PublicEvent[] };
@@ -145,6 +146,9 @@ export function applyAction(
     case "resume":
       resume(draft, actorId, now);
       break;
+    case "vote_kick":
+      voteKick(draft, actorId, now);
+      break;
     case "leave":
       leave(draft, actorId, now);
       break;
@@ -164,7 +168,6 @@ function join(draft: Draft, identity: Identity, now: number) {
       draft.emit({ type: "player_returned", playerId: existing.id }, now);
       if (!s.turn) {
         // Everyone was away: the returning player picks the game back up.
-        s.abandonAt = null;
         beginTurn(draft, existing.id, now);
       }
     }
@@ -201,6 +204,7 @@ function flip(draft: Draft, actorId: string, tileId: number, now: number) {
   if (s.status !== "playing") throw new EngineError("not_playing", "The game is not in progress");
   if (s.pause) throw new EngineError("paused", "The game is paused");
   const player = requirePlayer(s, actorId);
+  requireNotKicked(player);
   if (s.turn?.playerId !== actorId) throw new EngineError("not_your_turn", "It is not your turn");
   if (s.lockUntil !== null) throw new EngineError("locked", "Wait for the tiles to flip back");
   const tile = s.board[tileId];
@@ -211,6 +215,10 @@ function flip(draft: Draft, actorId: string, tileId: number, now: number) {
 
   player.lastActionAt = now;
   player.timeouts = 0;
+  if (s.turn?.timedOut) {
+    // The held turn carries on: the vote is off and the clock starts afresh.
+    beginTurn(draft, actorId, now);
+  }
   tile.state = "revealed";
   s.revealed.push(tileId);
   draft.emit({ type: "tile_revealed", playerId: actorId, tileId, face: tile.face }, now);
@@ -290,12 +298,14 @@ function leave(draft: Draft, actorId: string, now: number) {
     advanceTurn(draft, actorId, now);
   }
   // During a flip-back lock the lock expiry hides the tiles and advances past the leaver.
+  resolveKickVote(draft, now);
 }
 
 function pause(draft: Draft, actorId: string, now: number) {
   const s = draft.state;
   if (s.status !== "playing") throw new EngineError("not_playing", "The game is not in progress");
   const player = requirePlayer(s, actorId);
+  requireNotKicked(player);
   if (s.pause) throw new EngineError("paused", "The game is already paused");
   if (player.status !== "active") throw new EngineError("pause_unavailable", "Rejoin the game to pause it");
   if (player.pausesUsed >= RULES.pausesPerPlayer) {
@@ -323,12 +333,80 @@ function endPause(draft: Draft, at: number) {
   const s = draft.state;
   if (!s.pause) return;
   const elapsed = Math.max(0, at - s.pause.startedAt); // clock skew must not pull deadlines back
-  if (s.turn) s.turn.deadline += elapsed;
+  if (s.turn && s.turn.deadline !== null) s.turn.deadline += elapsed;
   if (s.lockUntil !== null) s.lockUntil += elapsed;
   if (s.lockStartedAt !== null) s.lockStartedAt += elapsed;
   if (s.abandonAt !== null) s.abandonAt += elapsed;
   s.pause = null;
   draft.emit({ type: "resumed" }, at);
+}
+
+function requireNotKicked(player: PlayerState) {
+  if (player.status === "kicked") {
+    throw new EngineError("kicked", "You were voted out of this game; you can keep watching");
+  }
+}
+
+function voteKick(draft: Draft, actorId: string, now: number) {
+  const s = draft.state;
+  if (s.status !== "playing") throw new EngineError("not_playing", "The game is not in progress");
+  const voter = requirePlayer(s, actorId);
+  requireNotKicked(voter);
+  if (s.pause) throw new EngineError("paused", "The game is paused");
+  if (!s.turn?.timedOut) throw new EngineError("kick_unavailable", "There is nobody to vote out right now");
+  if (voter.status !== "active" || actorId === s.turn.playerId) {
+    throw new EngineError("kick_unavailable", "You cannot vote on this");
+  }
+  if (s.turn.kickVotes.includes(actorId)) return;
+  s.turn.kickVotes.push(actorId);
+  draft.emit({ type: "kick_vote", playerId: actorId }, now);
+  resolveKickVote(draft, now);
+}
+
+/**
+ * Kicks the held turn's player once every eligible voter has voted. If nobody is left who could
+ * vote (they all left), the held player simply gets a fresh turn.
+ */
+function resolveKickVote(draft: Draft, at: number) {
+  const s = draft.state;
+  const turn = s.turn;
+  if (s.status !== "playing" || !turn?.timedOut) return;
+  const voters = eligibleVoters(s);
+  if (voters.length === 0) {
+    s.abandonAt = null;
+    return skipIdlePlayer(
+      draft,
+      s.players.find((p) => p.id === turn.playerId)!,
+      at,
+    );
+  }
+  if (!voters.every((p) => turn.kickVotes.includes(p.id))) return;
+  const target = s.players.find((p) => p.id === turn.playerId)!;
+  target.status = "kicked";
+  s.abandonAt = null;
+  draft.emit({ type: "player_kicked", playerId: target.id }, at);
+  if (s.hostId === target.id) handOverHost(draft, at);
+  advanceTurn(draft, target.id, at);
+}
+
+/**
+ * A timed-out player with nobody left to vote on them: skip them, and after enough consecutive
+ * timeouts mark them away so a game with no opponents can still wind down and be abandoned.
+ */
+function skipIdlePlayer(draft: Draft, player: PlayerState, at: number) {
+  const s = draft.state;
+  player.timeouts += 1;
+  if (player.timeouts >= RULES.timeoutsBeforeAway) {
+    player.status = "away";
+    draft.emit({ type: "player_away", playerId: player.id }, at);
+    if (s.hostId === player.id) handOverHost(draft, at);
+  }
+  advanceTurn(draft, player.id, at);
+}
+
+/** Players who can vote on kicking the current turn's player: active, and not that player. */
+function eligibleVoters(s: GameState): PlayerState[] {
+  return s.players.filter((p) => p.status === "active" && p.id !== s.turn?.playerId);
 }
 
 function requirePlayer(s: GameState, playerId: string): PlayerState {
@@ -344,7 +422,8 @@ function requirePlayer(s: GameState, playerId: string): PlayerState {
 function beginTurn(draft: Draft, playerId: string, at: number) {
   // While paused the clock is frozen at the pause's start; endPause adds the paused time back.
   const deadline = (draft.state.pause?.startedAt ?? at) + draft.state.turnSeconds * 1000;
-  draft.state.turn = { playerId, deadline };
+  draft.state.turn = { playerId, deadline, timedOut: false, kickVotes: [] };
+  draft.state.abandonAt = null; // a live turn means someone is playing
   draft.emit({ type: "turn_changed", playerId, deadline }, at);
 }
 
@@ -355,8 +434,12 @@ function advanceTurn(draft: Draft, fromId: string, at: number) {
   const fromIndex = seated.findIndex((p) => p.id === fromId);
   for (let step = 1; step <= seated.length; step++) {
     const candidate = seated[(fromIndex + step) % seated.length]!;
-    if (candidate.status === "active") return beginTurn(draft, candidate.id, at);
+    if (candidate.status !== "active") continue;
+    // A tile left face up never carries over to another player; the same player keeps theirs (solo timeout).
+    if (candidate.id !== fromId) hideRevealed(draft, at);
+    return beginTurn(draft, candidate.id, at);
   }
+  hideRevealed(draft, at);
 
   // Nobody active. If someone is merely away, give them a while to come back.
   s.turn = null;
@@ -470,24 +553,47 @@ function applyDue(draft: Draft, due: number) {
 
   if (s.abandonAt !== null && s.abandonAt <= due) return abandon(draft, due);
 
-  if (s.turn && s.turn.deadline <= due) {
+  if (s.turn && s.turn.deadline !== null && s.turn.deadline <= due) {
     const player = s.players.find((p) => p.id === s.turn!.playerId)!;
     draft.emit({ type: "turn_timed_out", playerId: player.id }, due);
-    player.timeouts += 1;
     player.streak = 0;
-    hideRevealed(draft, due);
-    if (player.timeouts >= RULES.timeoutsBeforeAway) {
-      player.status = "away";
-      draft.emit({ type: "player_away", playerId: player.id }, due);
-      if (s.hostId === player.id) handOverHost(draft, due);
-    }
-    advanceTurn(draft, player.id, due);
+    // A tile they already turned over stays face up while the turn is held; it goes face down when the
+    // turn moves on (advanceTurn).
+    // Nobody to vote (a solo game): carry on with a fresh clock rather than stall.
+    if (eligibleVoters(s).length === 0) return skipIdlePlayer(draft, player, due);
+    // Hold the turn. If nobody ever resolves it, the table is abandoned like any idle one.
+    s.turn.deadline = null;
+    s.turn.timedOut = true;
+    s.abandonAt ??= due + RULES.allAwayAbandonMs;
   }
 }
 
 // ---------------------------------------------------------------------------
 // Redaction
 // ---------------------------------------------------------------------------
+
+function kickVoteView(s: GameState, viewerId: string | null): TableView["kickVote"] {
+  if (s.status !== "playing" || !s.turn?.timedOut) return null;
+  const voters = eligibleVoters(s);
+  const votes = s.turn.kickVotes;
+  return {
+    targetId: s.turn.playerId,
+    votes: voters.filter((p) => votes.includes(p.id)).length,
+    needed: voters.length,
+    youVoted: viewerId !== null && votes.includes(viewerId),
+  };
+}
+
+function canVoteKick(s: GameState, viewerId: string | null): boolean {
+  if (s.status !== "playing" || s.pause || !s.turn?.timedOut) return false;
+  const voter = s.players.find((p) => p.id === viewerId);
+  return (
+    !!voter &&
+    voter.status === "active" &&
+    voter.id !== s.turn.playerId &&
+    !s.turn.kickVotes.includes(voter.id)
+  );
+}
 
 function canPause(s: GameState, viewerId: string | null): boolean {
   if (s.status !== "playing" || s.pause) return false;
@@ -536,10 +642,12 @@ export function toView(s: GameState, viewerId: string | null, options: ViewOptio
       if (t.state === "revealed") return { id, state: "revealed", face: t.face };
       return { id, state: "matched", face: t.face, by: t.by ?? "" };
     }),
-    turn: s.turn ? { ...s.turn } : null,
+    turn: s.turn ? { playerId: s.turn.playerId, deadline: s.turn.deadline, timedOut: s.turn.timedOut } : null,
     lockUntil: s.lockUntil,
     pause: s.pause ? { ...s.pause } : null,
     canPause: canPause(s, viewerId),
+    kickVote: kickVoteView(s, viewerId),
+    canVoteKick: canVoteKick(s, viewerId),
     seq: s.seq,
   };
 }

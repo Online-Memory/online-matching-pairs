@@ -71,7 +71,7 @@ export type FlipRequest = z.infer<typeof flipRequestSchema>;
 // ---------------------------------------------------------------------------
 
 export type TableStatus = "lobby" | "playing" | "finished" | "abandoned";
-export type PlayerStatus = "active" | "away" | "left";
+export type PlayerStatus = "active" | "away" | "left" | "kicked";
 
 /** Request header that carries the cheat codes switched on in the page URL (e.g. `?cheatmode=true`). */
 export const CHEAT_HEADER = "x-cheat";
@@ -118,14 +118,18 @@ export type TableView = {
   youId: string | null;
   players: PlayerView[];
   tiles: TileView[];
-  /** Deadline is server epoch ms; the client renders a countdown, the server decides expiry. */
-  turn: { playerId: string; deadline: number } | null;
+  /** `deadline` is server epoch ms (null while the turn is held for a kick vote); the client renders a countdown, the server decides expiry. */
+  turn: { playerId: string; deadline: number | null; timedOut: boolean } | null;
   /** Mismatched tiles stay face up until this server time (or until the player dismisses them). */
   lockUntil: number | null;
   /** Set while the game is paused. `until` is when it resumes by itself; times are server epoch ms. */
   pause: { by: string; startedAt: number; until: number } | null;
   /** Whether the viewer can start a pause right now (seated, active, game running, budget left). */
   canPause: boolean;
+  /** Set while a timed-out turn is held for a kick vote. The tally is counts plus `youVoted`; who voted is visible through `kick_vote` events. */
+  kickVote: { targetId: string; votes: number; needed: number; youVoted: boolean } | null;
+  /** Whether the viewer can cast a kick vote right now. */
+  canVoteKick: boolean;
   seq: number;
 };
 
@@ -152,6 +156,8 @@ export type PublicEvent = EventBase &
     | { type: "game_over"; scores: { playerId: string; pairs: number; rank: number }[] }
     | { type: "paused"; playerId: string; until: number }
     | { type: "resumed" }
+    | { type: "kick_vote"; playerId: string }
+    | { type: "player_kicked"; playerId: string }
     | { type: "abandoned" }
   );
 
@@ -208,6 +214,8 @@ export const ERROR_CODES = [
   "paused",
   "pause_unavailable",
   "not_pauser",
+  "kick_unavailable",
+  "kicked",
   "not_playing",
   "rate_limited",
   "conflict",

@@ -10,7 +10,7 @@ export const RULES = {
   mismatchLockMs: MISMATCH_LOCK_MS,
   /** A dismissal is ignored until the pair has been face up this long, so a 1s poll always sees it. */
   minRevealMs: MIN_REVEAL_MS,
-  /** Consecutive turn timeouts before a player is marked away and skipped. */
+  /** Consecutive turn timeouts, with nobody else to vote them out, before a player is marked away. */
   timeoutsBeforeAway: 3,
   /** Table is abandoned when nobody active is left for this long. */
   allAwayAbandonMs: 5 * 60_000,
@@ -35,12 +35,13 @@ const playerSchema = z.object({
   userId: z.string().nullable(),
   name: z.string(),
   seat: z.number().int(),
-  status: z.enum(["active", "away", "left"]),
+  status: z.enum(["active", "away", "left", "kicked"]),
   moves: z.number().int(),
   pairs: z.number().int(),
   streak: z.number().int(),
   bestStreak: z.number().int(),
-  timeouts: z.number().int(),
+  /** Kept for the previous deployment's schema; now counts only consecutive timeouts with no one to vote (drives the no-voter fallback). */
+  timeouts: z.number().int().default(0),
   lastActionAt: z.number(),
   pausesUsed: z.number().int().default(0),
 });
@@ -73,7 +74,16 @@ export const gameStateSchema = z.object({
   board: z.array(tileSchema),
   /** Tile ids currently face up in this turn (0-2). */
   revealed: z.array(z.number().int()),
-  turn: z.object({ playerId: z.string(), deadline: z.number() }).nullable(),
+  turn: z
+    .object({
+      playerId: z.string(),
+      /** Null while the turn is held after a timeout, waiting for a kick vote. */
+      deadline: z.number().nullable(),
+      timedOut: z.boolean().default(false),
+      /** Ids of players who voted to kick `playerId`; cleared whenever the turn moves or resumes. */
+      kickVotes: z.array(z.string()).default([]),
+    })
+    .nullable(),
   lockUntil: z.number().nullable(),
   /** When the current flip-back lock began. Dismissals measure the minimum reveal from here, not from lockUntil, which they move. */
   lockStartedAt: z.number().nullable().default(null),

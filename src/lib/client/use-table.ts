@@ -30,7 +30,7 @@ export function pollDelay(view: TableView | null, hidden: boolean, override?: nu
 const POLL_OVERRIDE = Number(process.env.NEXT_PUBLIC_POLL_MS) || undefined;
 const MAX_BACKOFF_MS = 10_000;
 
-export type TableAction = "join" | "start" | "flip" | "dismiss" | "pause" | "resume" | "leave";
+export type TableAction = "join" | "start" | "flip" | "dismiss" | "pause" | "resume" | "voteKick" | "leave";
 
 export type TableHandle = {
   view: TableView | null;
@@ -58,6 +58,8 @@ export type TableHandle = {
   pause: () => Promise<void>;
   /** Ends a pause early; only the player who paused can. */
   resume: () => Promise<void>;
+  /** Votes to kick the player whose turn timed out; they are removed once every other active player agrees. */
+  voteKick: () => Promise<void>;
   leave: () => Promise<void>;
   clearActionError: () => void;
 };
@@ -253,6 +255,7 @@ export function useTable(code: string): TableHandle {
     flippedBack: activeMask !== null,
     pause: async () => void (await run("pause", (s) => api.pause(code, s))),
     resume: async () => void (await run("resume", (s) => api.resume(code, s))),
+    voteKick: async () => void (await run("voteKick", (s) => api.voteKick(code, s))),
     leave: async () => void (await run("leave", (s) => api.leave(code, s))),
     clearActionError: () => setActionError(null),
   };

@@ -75,7 +75,7 @@ test("a missed pair stays visible to the opponent, then flips back and the turn 
   await expect(ann.page.getByTestId("status-line")).toHaveText("Ben's turn");
 });
 
-test("an unanswered turn times out and passes to the next player", async ({ newPlayer }) => {
+test("an unanswered turn is held, and a unanimous kick vote passes play on", async ({ newPlayer }) => {
   const ann = await newPlayer("Ann");
   const ben = await newPlayer("Ben");
   const code = await createTable(ann, { turnSeconds: 3 });
@@ -84,6 +84,10 @@ test("an unanswered turn times out and passes to the next player", async ({ newP
 
   await tile(ann.page, 0).click();
   await expect(tile(ann.page, 0)).toHaveAttribute("data-state", "revealed");
+  await expect(ben.page.getByTestId("status-line")).toHaveText(/Ann ran out of time/, { timeout: 8_000 });
+  await ben.page.getByRole("button", { name: "Vote to kick Ann" }).click();
+
+  await expect(ann.page.getByText(/voted you out of this game/)).toBeVisible({ timeout: 8_000 });
   await expect(ben.page.getByTestId("status-line")).toHaveText(/Your turn/, { timeout: 8_000 });
   await expect(tile(ben.page, 0)).toHaveAttribute("data-state", "hidden");
 });
