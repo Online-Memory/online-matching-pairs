@@ -46,10 +46,18 @@ describe("public table routes", () => {
 
   it("creates a public table when asked, and a private one otherwise", async () => {
     await post({ theme: "001", pairs: 8, turnSeconds: 20, name: "X", isPublic: true });
-    expect(create).toHaveBeenLastCalledWith(expect.anything(), expect.objectContaining({ isPublic: true }));
+    expect(create).toHaveBeenLastCalledWith(
+      expect.anything(),
+      expect.objectContaining({ isPublic: true }),
+      [], // a guest host has no saved colours
+    );
 
     await post({ theme: "001", pairs: 8, turnSeconds: 20, name: "X" });
-    expect(create).toHaveBeenLastCalledWith(expect.anything(), expect.objectContaining({ isPublic: false }));
+    expect(create).toHaveBeenLastCalledWith(
+      expect.anything(),
+      expect.objectContaining({ isPublic: false }),
+      [], // a guest host has no saved colours
+    );
   });
 
   it("rejects a non-boolean visibility", async () => {

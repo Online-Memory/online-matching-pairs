@@ -8,6 +8,7 @@ const player = (id: string, over: Partial<PlayerView> = {}): PlayerView => ({
   id,
   name: id,
   seat: 0,
+  colour: 0,
   status: "active",
   isHost: false,
   isGuest: true,

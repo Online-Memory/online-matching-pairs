@@ -25,13 +25,14 @@ const lobby = {
   status: "lobby",
   hostId: "h",
   youId: null,
-  players: [{ id: "h", name: "Host", seat: 0, status: "active", isHost: true, isGuest: false }],
+  players: [{ id: "h", name: "Host", seat: 0, colour: 0, status: "active", isHost: true, isGuest: false }],
   tiles: [],
   turn: null,
   lockUntil: null,
 } as unknown as TableView;
 
-const join = vi.fn(async () => {});
+const join = vi.fn(async (..._args: unknown[]) => {});
+const chooseColour = vi.fn(async (..._colour: number[]) => {});
 const voteKick = vi.fn(async () => {});
 
 function mockTable(view: TableView, events: PublicEvent[] = []) {
@@ -44,6 +45,7 @@ function mockTable(view: TableView, events: PublicEvent[] = []) {
     reconnecting: false,
     pending: false,
     join,
+    chooseColour,
     start: vi.fn(),
     flip: vi.fn(),
     dismiss: vi.fn(),
@@ -57,6 +59,7 @@ function mockTable(view: TableView, events: PublicEvent[] = []) {
 
 beforeEach(() => {
   join.mockClear();
+  chooseColour.mockClear();
   voteKick.mockClear();
   vi.spyOn(meModule, "useMe").mockReturnValue(signedIn);
 });
@@ -136,7 +139,17 @@ describe("TableScreen match effects", () => {
     status: "playing",
     youId: "h",
     players: [
-      { id: "h", name: "Host", seat: 0, status: "active", isHost: true, isGuest: false, pairs: 3, streak: 3 },
+      {
+        id: "h",
+        name: "Host",
+        seat: 0,
+        colour: 0,
+        status: "active",
+        isHost: true,
+        isGuest: false,
+        pairs: 3,
+        streak: 3,
+      },
     ],
     turn: { playerId: "h", deadline: 100_000 },
     pause: null,
@@ -199,8 +212,8 @@ describe("TableScreen kick vote", () => {
       status: "playing",
       youId: "b",
       players: [
-        { id: "a", name: "Ann", seat: 0, status: "active", isHost: true, isGuest: false },
-        { id: "b", name: "Bob", seat: 1, status: "active", isHost: false, isGuest: false },
+        { id: "a", name: "Ann", seat: 0, colour: 0, status: "active", isHost: true, isGuest: false },
+        { id: "b", name: "Bob", seat: 1, colour: 1, status: "active", isHost: false, isGuest: false },
       ],
       turn: { playerId: "a", deadline: null, timedOut: true },
       kickVote: { targetId: "a", votes: 0, needed: 1, youVoted: false },
@@ -243,5 +256,24 @@ describe("TableScreen turn cue", () => {
     mockTable({ ...myTurn, turn: { playerId: "h", deadline: null, timedOut: true } } as TableView);
     rerender(<TableScreen code="ABC234" />);
     expect(queryByTestId("board-cue")).toBeNull();
+  });
+});
+
+describe("TableScreen colours", () => {
+  it("sends a seated player's colour switch to the table", () => {
+    mockTable({ ...lobby, youId: "h" });
+    render(<TableScreen code="ABC234" />);
+    fireEvent.click(screen.getByRole("radio", { name: "Navy" }));
+    expect(chooseColour).toHaveBeenCalledWith(10);
+  });
+
+  it("sends a guest's name and colour when they join", () => {
+    vi.spyOn(meModule, "useMe").mockReturnValue(guest);
+    mockTable(lobby);
+    render(<TableScreen code="ABC234" />);
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: "Cat" } });
+    fireEvent.click(screen.getByRole("radio", { name: "Navy" }));
+    fireEvent.click(screen.getByRole("button", { name: "Join table" }));
+    expect(join).toHaveBeenCalledWith("Cat", 10);
   });
 });

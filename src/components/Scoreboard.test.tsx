@@ -16,6 +16,7 @@ const player = (over: Partial<PlayerView> = {}): PlayerView => ({
   id: "a",
   name: "Ann",
   seat: 0,
+  colour: 0,
   status: "active",
   isHost: false,
   isGuest: true,
@@ -104,7 +105,7 @@ describe("Scoreboard kicked and held turns", () => {
 describe("Scoreboard idle warning", () => {
   const myTurn = (over: Partial<TableView> = {}) =>
     ({
-      ...view([player({ id: "a" }), player({ id: "b", name: "Bob", seat: 1 })]),
+      ...view([player({ id: "a" }), player({ id: "b", name: "Bob", seat: 1, colour: 1 })]),
       turn: { playerId: "a", deadline: Date.now() + 8_000, timedOut: false },
       ...over,
     }) as unknown as TableView;
@@ -128,5 +129,12 @@ describe("Scoreboard idle warning", () => {
     const v = myTurn({ turn: { playerId: "b", deadline: Date.now() + 8_000, timedOut: false } });
     render(<Scoreboard view={v} serverOffset={0} idleLevel={2} />);
     expect(seat()).not.toHaveAttribute("data-idle");
+  });
+});
+
+describe("Scoreboard colours", () => {
+  it("uses the player's colour, not their seat", () => {
+    render(<Scoreboard view={view([player({ seat: 0, colour: 7 })])} serverOffset={0} />);
+    expect(seat()).toHaveAttribute("data-seat", "7");
   });
 });

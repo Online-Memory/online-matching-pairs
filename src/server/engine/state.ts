@@ -35,6 +35,8 @@ const playerSchema = z.object({
   userId: z.string().nullable(),
   name: z.string(),
   seat: z.number().int(),
+  /** Index into the palette. Absent on tables saved before colours existed: the colour was then the seat (`effectiveColour`). */
+  colour: z.number().int().optional(),
   status: z.enum(["active", "away", "left", "kicked"]),
   moves: z.number().int(),
   pairs: z.number().int(),

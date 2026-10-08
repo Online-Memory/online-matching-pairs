@@ -28,6 +28,7 @@ beforeEach(() => {
     xpForNext: 200,
     achievements: [{ id: "first_game", earnedAt: "2026-10-07T12:00:00.000Z" }],
   });
+  vi.spyOn(api, "colours").mockResolvedValue({ colours: [] });
   vi.spyOn(api, "friends").mockResolvedValue({
     handle: "alice",
     friends: [],
@@ -42,6 +43,17 @@ afterEach(() => {
 });
 
 describe("Profile", () => {
+  it("shows the preferred colours above friends for a signed-in user", async () => {
+    vi.spyOn(meModule, "useMe").mockReturnValue({
+      authEnabled: true,
+      user: { id: "a", name: "Alice", email: "a@example.com", image: null },
+    });
+    render(<Profile />);
+    const colours = await screen.findByRole("heading", { name: "Preferred colours" });
+    const friends = screen.getByRole("heading", { name: "Friends" });
+    expect(colours.compareDocumentPosition(friends) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
   it("hosts the friends panel for a signed-in user, above the finished games", async () => {
     vi.spyOn(meModule, "useMe").mockReturnValue({
       authEnabled: true,

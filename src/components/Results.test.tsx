@@ -22,6 +22,7 @@ const player = (id: string, over: Partial<PlayerView> = {}): PlayerView => ({
   id,
   name: id.toUpperCase(),
   seat: 0,
+  colour: 0,
   status: "active",
   isHost: false,
   isGuest: true,
@@ -56,5 +57,10 @@ describe("Results", () => {
     render(<Results view={view([player("a", { pairs: 8, moves: 8, bestStreak: 8 })])} />);
     expect(screen.queryByTestId("podium")).toBeNull();
     expect(screen.queryByText("Flawless")).toBeNull();
+  });
+
+  it("colours each row by the player's colour, not their seat", () => {
+    render(<Results view={view([player("a", { seat: 0, colour: 9 })])} />);
+    expect(screen.getAllByRole("row")[1]).toHaveAttribute("data-seat", "9");
   });
 });

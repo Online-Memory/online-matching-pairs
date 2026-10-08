@@ -6,6 +6,7 @@ import type { TableAction } from "@/lib/client/use-table";
 import { getTheme, type TableView } from "@/lib/protocol";
 
 import { Button } from "./Button";
+import { ColourPicker } from "./ColourPicker";
 import { InviteFriends } from "./InviteFriends";
 import { JoinPanel } from "./JoinPanel";
 
@@ -14,16 +15,28 @@ type Props = {
   needsName: boolean;
   pending: boolean;
   pendingAction: TableAction | null;
-  onJoin: (name?: string) => void;
+  onJoin: (name?: string, colour?: number) => void;
+  onChooseColour: (colour: number) => void;
   onStart: () => void;
   onLeave: () => void;
 };
 
-export function Lobby({ view, needsName, pending, pendingAction, onJoin, onStart, onLeave }: Props) {
+export function Lobby({
+  view,
+  needsName,
+  pending,
+  pendingAction,
+  onJoin,
+  onChooseColour,
+  onStart,
+  onLeave,
+}: Props) {
   const [copied, setCopied] = useState(false);
   const isPlayer = view.youId !== null;
   const isHost = view.youId === view.hostId;
   const full = view.players.length >= view.maxPlayers;
+  const takenColours = new Set(view.players.map((p) => p.colour));
+  const mine = view.players.find((p) => p.id === view.youId);
 
   async function copyLink() {
     await navigator.clipboard?.writeText(`${location.origin}/table/${view.code}`);
@@ -48,7 +61,7 @@ export function Lobby({ view, needsName, pending, pendingAction, onJoin, onStart
 
       <ul className="lobby-players" aria-label="Seated players">
         {view.players.map((p) => (
-          <li key={p.id} data-seat={p.seat}>
+          <li key={p.id} data-seat={p.colour}>
             <span className="seat-token" aria-hidden />
             {p.name}
             {p.isHost && <span className="seat-note"> host</span>}
@@ -71,11 +84,22 @@ export function Lobby({ view, needsName, pending, pendingAction, onJoin, onStart
         ) : (
           <JoinPanel
             needsName={needsName}
+            takenColours={takenColours}
             pending={pending}
             joining={pendingAction === "join"}
             onJoin={onJoin}
           />
         ))}
+
+      {isPlayer && mine && (
+        <ColourPicker
+          label="Your colour"
+          value={mine.colour}
+          taken={takenColours}
+          onPick={onChooseColour}
+          disabled={pending}
+        />
+      )}
 
       {isPlayer && (
         <div className="actions">

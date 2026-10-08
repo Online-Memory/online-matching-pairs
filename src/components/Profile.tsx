@@ -14,6 +14,7 @@ import { Button } from "./Button";
 import { FinishedGames } from "./FinishedGames";
 import { FriendsPanel } from "./FriendsPanel";
 import { LevelBar } from "./LevelBar";
+import { ProfileColours } from "./ProfileColours";
 import { LoadingNotice } from "./Spinner";
 import { StatsPanel } from "./StatsPanel";
 
@@ -54,6 +55,7 @@ export function Profile() {
       ) : (
         stats && <StatsPanel stats={stats} />
       )}
+      <ProfileColours />
       <FriendsPanel />
       <FinishedGames />
       <Button

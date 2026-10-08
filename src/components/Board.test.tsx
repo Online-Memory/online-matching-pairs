@@ -13,6 +13,7 @@ const players: PlayerView[] = [
     id: "a",
     name: "Ann",
     seat: 0,
+    colour: 0,
     status: "active",
     isHost: true,
     isGuest: true,
@@ -88,5 +89,16 @@ describe("Board", () => {
     const many: TileView[] = Array.from({ length: 24 }, (_, id) => ({ id, state: "hidden" }));
     render(<Board tiles={many} theme="001" players={players} canFlip={false} onFlip={() => {}} />);
     expect(screen.getByRole("group", { name: "Board" }).style.getPropertyValue("--cols")).toBe("6");
+  });
+
+  it("colours a matched tile by its owner's colour and names the owner on hover", () => {
+    const owner = { ...players[0]!, seat: 0, colour: 5 };
+    const { container } = render(
+      <Board tiles={tiles} theme="001" players={[owner]} canFlip onFlip={() => {}} />,
+    );
+    const matched = container.querySelector('[data-tile-id="2"]')!;
+    expect(matched).toHaveAttribute("data-seat", "5");
+    expect(matched).toHaveAttribute("title", "Ann");
+    expect(container.querySelector('[data-tile-id="0"]')).not.toHaveAttribute("title");
   });
 });

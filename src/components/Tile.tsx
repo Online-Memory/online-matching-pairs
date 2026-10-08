@@ -7,8 +7,8 @@ import { faceSprite, type TileView } from "@/lib/protocol";
 type Props = {
   tile: TileView;
   theme: string;
-  /** Seat of the player who matched it, for the ownership colour. */
-  ownerSeat: number | null;
+  /** Colour of the player who matched it, for the ownership colour. */
+  ownerColour: number | null;
   ownerName: string | null;
   canFlip: boolean;
   onFlip: (tileId: number) => void;
@@ -22,7 +22,7 @@ type Props = {
  * A face-down tile renders no picture at all: the face is only drawn (from the theme sprite) once the
  * server has revealed which picture is there.
  */
-export function Tile({ tile, theme, ownerSeat, ownerName, canFlip, onFlip, celebrate, zoomLean }: Props) {
+export function Tile({ tile, theme, ownerColour, ownerName, canFlip, onFlip, celebrate, zoomLean }: Props) {
   const label =
     tile.state === "hidden"
       ? `Tile ${tile.id + 1}, face down`
@@ -37,7 +37,9 @@ export function Tile({ tile, theme, ownerSeat, ownerName, canFlip, onFlip, celeb
       data-state={tile.state}
       data-tile-id={tile.id}
       data-face={tile.state === "hidden" ? tile.peek : tile.face}
-      data-seat={ownerSeat ?? undefined}
+      data-seat={ownerColour ?? undefined}
+      // Colour alone can't tell the closest palette pairs apart, so a matched tile also names its owner on hover.
+      title={tile.state === "matched" ? (ownerName ?? undefined) : undefined}
       data-celebrate={celebrate || undefined}
       style={zoomLean ? ({ "--zoom-x": zoomLean.x, "--zoom-y": zoomLean.y } as CSSProperties) : undefined}
       aria-label={label}

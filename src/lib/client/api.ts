@@ -1,5 +1,6 @@
 import type {
   CreateTableRequest,
+  ColoursResponse,
   CreateTableResponse,
   ErrorResponse,
   FriendsResponse,
@@ -72,8 +73,12 @@ export const api = {
   createTable: (body: CreateTableRequest) => post<CreateTableResponse>("/api/tables", body),
   poll: (code: string, since: number) =>
     request<PollResponse>(`/api/tables/${encodeURIComponent(code)}?since=${since}`),
-  join: (code: string, since: number, name?: string) =>
-    post<SnapshotResponse>(table(code, "join", since), { name }),
+  join: (code: string, since: number, name?: string, colour?: number) =>
+    post<SnapshotResponse>(table(code, "join", since), { name, colour }),
+  chooseColour: (code: string, since: number, colour: number) =>
+    post<SnapshotResponse>(table(code, "colour", since), { colour }),
+  colours: () => request<ColoursResponse>("/api/me/colours"),
+  setColours: (colours: number[]) => send<ColoursResponse>("PUT", "/api/me/colours", { colours }),
   start: (code: string, since: number) => post<SnapshotResponse>(table(code, "start", since)),
   flip: (code: string, since: number, tileId: number) =>
     post<SnapshotResponse>(table(code, "flip", since), { tileId }),

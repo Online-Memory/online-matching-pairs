@@ -25,9 +25,9 @@ Turn-based memory game, one Next.js app on Vercel backed by Neon Postgres. Clien
   unrated ones, leaderboard, stats), `after.ts` (rates after the finishing response via `after()`). Friend ids come
   from `FriendsService.friendIds`. Routes: `src/app/api/leaderboard`, `src/app/api/me/stats`; the daily cron also
   sweeps unrated games. Client: `Leaderboard`, `StatsPanel`, `RatingChange`, `use-rating-change.ts`.
-- `src/server/friends/service.ts`: `FriendsService`: profiles (`@handle`), presence heartbeat, friendships and lobby
+- `src/server/friends/service.ts`: `FriendsService`: profiles (`@handle`, colour preferences), presence heartbeat, friendships and lobby
   invites in `profiles`, `friendships`, `table_invites`. It never reads `table_state`; seating comes from
-  `TableService.isSeatedInLobby`. Routes: `src/app/api/friends/*`, `src/app/api/me/{presence,handle}`,
+  `TableService.isSeatedInLobby`. Routes: `src/app/api/friends/*`, `src/app/api/me/{presence,handle,colours}`,
   `src/app/api/tables/[code]/invites`. Client: `src/lib/client/use-friends.ts`.
 - `src/lib/protocol/`: types shared by server and client. `src/lib/client/use-table.ts` is the only client code that
   talks to a table.

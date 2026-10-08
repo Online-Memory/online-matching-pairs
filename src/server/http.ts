@@ -14,6 +14,7 @@ const STATUS: Record<ErrorCode, number> = {
   not_host: 403,
   not_found: 404,
   table_full: 409,
+  colour_taken: 409,
   already_started: 409,
   not_your_turn: 409,
   tile_not_hidden: 409,

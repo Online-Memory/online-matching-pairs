@@ -39,7 +39,7 @@ export function Results({ view }: { view: TableView }) {
         </thead>
         <tbody>
           {ranked.map((p) => (
-            <tr key={p.id} data-seat={p.seat} data-you={p.id === view.youId || undefined}>
+            <tr key={p.id} data-seat={p.colour} data-you={p.id === view.youId || undefined}>
               <td>{p.rank ? ordinal(p.rank) : "–"}</td>
               <td>
                 <span className="seat-token" aria-hidden /> {p.name}

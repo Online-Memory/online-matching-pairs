@@ -229,7 +229,8 @@ export function TableScreen({ code, autoJoin = false }: { code: string; autoJoin
           needsName={me !== null && !me.user}
           pending={table.pending}
           pendingAction={table.pendingAction}
-          onJoin={(name) => void table.join(name)}
+          onJoin={(name, colour) => void table.join(name, colour)}
+          onChooseColour={(colour) => void table.chooseColour(colour)}
           onStart={() => void table.start()}
           onLeave={() => void table.leave()}
         />

@@ -19,17 +19,21 @@ export const POST = route(async (request, context: Context) => {
     userId: viewer.userId,
     name: viewer.accountName ?? body.name ?? "",
   };
+  const friends = viewer.userId ? await getFriendsService() : null;
+  // Best effort: preferences are a nicety, so a profile hiccup falls back to the lowest free colour instead of blocking the join.
+  const colourPrefs =
+    friends && viewer.userId ? await friends.colourPrefs(viewer.userId).catch(() => []) : [];
   const service = await getTableService();
   const snapshot = await service.act(
     code,
     identity,
-    { type: "join", identity },
+    { type: "join", identity, colour: body.colour, colourPrefs },
     sinceParam(request),
     viewOptions(request),
   );
-  if (viewer.userId) {
+  if (friends && viewer.userId) {
     // Best effort: a stale invite is a nuisance, not a reason to fail a join that already succeeded.
-    await (await getFriendsService()).clearInvitesForTable(viewer.userId, code).catch(() => {});
+    await friends.clearInvitesForTable(viewer.userId, code).catch(() => {});
   }
   return NextResponse.json<SnapshotResponse>(snapshot);
 });

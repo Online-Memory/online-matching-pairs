@@ -8,6 +8,7 @@ const player = (id: string, name: string, pairs: number, rank: number, moves = 1
   id,
   name,
   seat: 0,
+  colour: 0,
   status: "active",
   isHost: false,
   isGuest: true,

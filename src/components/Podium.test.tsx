@@ -15,6 +15,7 @@ const player = (id: string, rank: number, pairs: number): PlayerView => ({
   id,
   name: id.toUpperCase(),
   seat: 0,
+  colour: 0,
   status: "active",
   isHost: false,
   isGuest: true,

@@ -1,7 +1,9 @@
 import { z } from "zod";
 
+import { colourPrefsSchema, colourSchema } from "./colours";
 import { PAIR_OPTIONS, THEME_IDS } from "./themes";
 
+export * from "./colours";
 export * from "./themes";
 
 // ---------------------------------------------------------------------------
@@ -60,8 +62,14 @@ export const createTableRequestSchema = z.object({
 });
 export type CreateTableRequest = z.infer<typeof createTableRequestSchema>;
 
-export const joinRequestSchema = z.object({ name: displayNameSchema.optional() });
+export const joinRequestSchema = z.object({
+  name: displayNameSchema.optional(),
+  colour: colourSchema.optional(),
+});
 export type JoinRequest = z.infer<typeof joinRequestSchema>;
+
+export const chooseColourRequestSchema = z.object({ colour: colourSchema });
+export type ChooseColourRequest = z.infer<typeof chooseColourRequestSchema>;
 
 export const flipRequestSchema = z.object({ tileId: z.number().int().min(0).max(199) });
 export type FlipRequest = z.infer<typeof flipRequestSchema>;
@@ -92,6 +100,8 @@ export type PlayerView = {
   id: string;
   name: string;
   seat: number;
+  /** Index into PALETTE: the colour this player's tiles and seat use. */
+  colour: number;
   status: PlayerStatus;
   isHost: boolean;
   isGuest: boolean;
@@ -142,6 +152,7 @@ type EventBase = { seq: number; at: number };
 export type PublicEvent = EventBase &
   (
     | { type: "player_joined"; playerId: string; name: string }
+    | { type: "colour_changed"; playerId: string; colour: number }
     | { type: "player_left"; playerId: string }
     | { type: "started"; playerIds: string[] }
     | { type: "turn_changed"; playerId: string; deadline: number }
@@ -203,6 +214,7 @@ export const ERROR_CODES = [
   "unauthorized",
   "not_found",
   "table_full",
+  "colour_taken",
   "already_started",
   "not_host",
   "not_your_turn",
@@ -305,6 +317,8 @@ export const handleSchema = z
 
 export const friendRequestSchema = z.object({ handle: handleSchema });
 export const setHandleSchema = z.object({ handle: handleSchema });
+export const setColoursSchema = z.object({ colours: colourPrefsSchema });
+export type ColoursResponse = { colours: number[] };
 /** The heartbeat body. `tableCode` is the table the browser is seated at; null says "none", absent leaves it as is. */
 export const presenceRequestSchema = z.object({ tableCode: codeSchema.nullable().optional() });
 export const inviteRequestSchema = z.object({ userId: z.string().min(1).max(200) });

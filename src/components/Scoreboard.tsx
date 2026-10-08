@@ -24,7 +24,7 @@ export function Scoreboard({ view, serverOffset, idleLevel = 0 }: Props) {
           <li
             key={p.id}
             className="seat"
-            data-seat={p.seat}
+            data-seat={p.colour}
             data-turn={hasTurn}
             data-you={p.id === view.youId || undefined}
             data-idle={idle > 0 ? idle : undefined}

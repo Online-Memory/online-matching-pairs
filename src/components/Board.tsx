@@ -97,7 +97,7 @@ export function Board({ tiles, theme, players, canFlip, celebrating, onFlip, cue
               key={tile.id}
               tile={tile}
               theme={theme}
-              ownerSeat={owner?.seat ?? null}
+              ownerColour={owner?.colour ?? null}
               ownerName={owner?.name ?? null}
               canFlip={canFlip && !paused}
               onFlip={onFlip}

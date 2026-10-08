@@ -30,7 +30,8 @@ export function pollDelay(view: TableView | null, hidden: boolean, override?: nu
 const POLL_OVERRIDE = Number(process.env.NEXT_PUBLIC_POLL_MS) || undefined;
 const MAX_BACKOFF_MS = 10_000;
 
-export type TableAction = "join" | "start" | "flip" | "dismiss" | "pause" | "resume" | "voteKick" | "leave";
+export type TableAction =
+  "join" | "start" | "flip" | "dismiss" | "pause" | "resume" | "voteKick" | "leave" | "colour";
 
 export type TableHandle = {
   view: TableView | null;
@@ -44,7 +45,9 @@ export type TableHandle = {
   pending: boolean;
   /** Which action is awaiting the server, so the button that sent it can show a spinner. */
   pendingAction: TableAction | null;
-  join: (name?: string) => Promise<void>;
+  join: (name?: string, colour?: number) => Promise<void>;
+  /** Switches to a free colour while the table is still a lobby. */
+  chooseColour: (colour: number) => Promise<void>;
   start: () => Promise<void>;
   flip: (tileId: number) => Promise<void>;
   /**
@@ -248,7 +251,8 @@ export function useTable(code: string): TableHandle {
     reconnecting,
     pending: pendingAction !== null,
     pendingAction,
-    join: async (name) => void (await run("join", (s) => api.join(code, s, name))),
+    join: async (name, colour) => void (await run("join", (s) => api.join(code, s, name, colour))),
+    chooseColour: async (colour) => void (await run("colour", (s) => api.chooseColour(code, s, colour))),
     start: async () => void (await run("start", (s) => api.start(code, s))),
     flip: async (tileId) => void (await run("flip", (s) => api.flip(code, s, tileId))),
     dismiss,

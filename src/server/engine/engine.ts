@@ -1,7 +1,14 @@
 import "server-only";
 
-import type { ErrorCode, PublicEvent, TableView, TileView } from "@/lib/protocol";
+import {
+  PALETTE_SIZE,
+  type ErrorCode,
+  type PublicEvent,
+  type TableView,
+  type TileView,
+} from "@/lib/protocol";
 
+import { effectiveColour, pickColour, takenColours } from "./colour";
 import { RULES, type GameState, type Identity, type PlayerState, type Rng } from "./state";
 
 export class EngineError extends Error {
@@ -14,8 +21,11 @@ export class EngineError extends Error {
   }
 }
 
+type JoinAction = { type: "join"; identity: Identity; colour?: number; colourPrefs?: readonly number[] };
+
 export type Action =
-  | { type: "join"; identity: Identity }
+  | JoinAction
+  | { type: "choose_colour"; colour: number }
   | { type: "start" }
   | { type: "flip"; tileId: number }
   | { type: "dismiss" }
@@ -61,13 +71,19 @@ export type TableSettings = {
   tableName: string;
 };
 
-export function createTable(code: string, settings: TableSettings, host: Identity, now: number): GameState {
+export function createTable(
+  code: string,
+  settings: TableSettings,
+  host: Identity,
+  now: number,
+  hostColourPrefs: readonly number[] = [],
+): GameState {
   return {
     code,
     ...settings,
     status: "lobby",
     hostId: host.playerId,
-    players: [newPlayer(host, 0, now)],
+    players: [newPlayer(host, 0, pickColour(new Set(), hostColourPrefs), now)],
     board: [],
     revealed: [],
     turn: null,
@@ -83,12 +99,13 @@ export function createTable(code: string, settings: TableSettings, host: Identit
   };
 }
 
-function newPlayer(identity: Identity, seat: number, now: number): PlayerState {
+function newPlayer(identity: Identity, seat: number, colour: number, now: number): PlayerState {
   return {
     id: identity.playerId,
     userId: identity.userId,
     name: identity.name,
     seat,
+    colour,
     status: "active",
     moves: 0,
     pairs: 0,
@@ -129,7 +146,10 @@ export function applyAction(
   const draft = new Draft(state);
   switch (action.type) {
     case "join":
-      join(draft, action.identity, now);
+      join(draft, action, now);
+      break;
+    case "choose_colour":
+      chooseColour(draft, actorId, action.colour, now);
       break;
     case "start":
       start(draft, actorId, now, rng);
@@ -156,7 +176,8 @@ export function applyAction(
   return draft.result();
 }
 
-function join(draft: Draft, identity: Identity, now: number) {
+function join(draft: Draft, action: JoinAction, now: number) {
+  const identity = action.identity;
   const s = draft.state;
   const existing = s.players.find((p) => p.id === identity.playerId);
 
@@ -178,10 +199,36 @@ function join(draft: Draft, identity: Identity, now: number) {
   if (s.players.length >= s.maxPlayers) throw new EngineError("table_full", "This table is full");
   if (!identity.name) throw new EngineError("bad_request", "Enter a name to join");
 
+  const taken = takenColours(s);
+  if (action.colour !== undefined) {
+    assertColour(action.colour);
+    if (taken.has(action.colour)) throw new EngineError("colour_taken", "That colour is already taken");
+  }
+  const colour = action.colour ?? pickColour(taken, action.colourPrefs);
+
   const seat = Math.max(-1, ...s.players.map((p) => p.seat)) + 1;
-  s.players.push(newPlayer(identity, seat, now));
+  s.players.push(newPlayer(identity, seat, colour, now));
   s.lobbyExpiresAt = now + RULES.lobbyIdleMs;
   draft.emit({ type: "player_joined", playerId: identity.playerId, name: identity.name }, now);
+}
+
+function assertColour(colour: number) {
+  if (!Number.isInteger(colour) || colour < 0 || colour >= PALETTE_SIZE) {
+    throw new EngineError("bad_request", "Unknown colour");
+  }
+}
+
+function chooseColour(draft: Draft, actorId: string, colour: number, now: number) {
+  const s = draft.state;
+  const player = requirePlayer(s, actorId);
+  if (s.status !== "lobby")
+    throw new EngineError("already_started", "Colours are fixed once the game starts");
+  assertColour(colour);
+  if (effectiveColour(player) === colour) return;
+  if (takenColours(s).has(colour)) throw new EngineError("colour_taken", "That colour is already taken");
+  player.colour = colour;
+  // Emitting bumps `seq`, which is what makes every other client's next poll fetch the new colour.
+  draft.emit({ type: "colour_changed", playerId: actorId, colour }, now);
 }
 
 function start(draft: Draft, actorId: string, now: number, rng: Rng) {
@@ -626,6 +673,7 @@ export function toView(s: GameState, viewerId: string | null, options: ViewOptio
         id: p.id,
         name: p.name,
         seat: p.seat,
+        colour: effectiveColour(p),
         status: p.status,
         isHost: p.id === s.hostId,
         isGuest: p.userId === null,

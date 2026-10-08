@@ -65,10 +65,14 @@ export class TableService {
     this.rng = options.rng ?? cryptoRng;
   }
 
-  async create(host: Identity, settings: TableSettings): Promise<{ code: string }> {
+  async create(
+    host: Identity,
+    settings: TableSettings,
+    hostColourPrefs: readonly number[] = [],
+  ): Promise<{ code: string }> {
     for (let attempt = 0; attempt < MAX_CODE_ATTEMPTS; attempt++) {
       const code = generateCode(this.rng);
-      const state = createTable(code, settings, host, this.clock());
+      const state = createTable(code, settings, host, this.clock(), hostColourPrefs);
       try {
         await insertTable(this.db, { gameId: randomUUID(), state, events: [], nextDueAt: nextDueAt(state) });
         return { code };

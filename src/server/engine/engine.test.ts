@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import {
   applyAction,
   createTable,
+  effectiveColour,
   EngineError,
   gameStateSchema,
   nextDueAt,
@@ -779,5 +780,118 @@ describe("kick vote", () => {
     old.players[0]!.timeouts = 2;
     const parsed = gameStateSchema.parse(old);
     expect(parsed.turn).toMatchObject({ timedOut: false, kickVotes: [] });
+  });
+});
+
+describe("colours", () => {
+  const base = { theme: "001", pairs: 8, maxPlayers: 4, turnSeconds: 20, isPublic: false, tableName: "T" };
+  const join = (n: number, extra: Partial<{ colour: number; colourPrefs: number[] }> = {}): Action => ({
+    type: "join",
+    identity: id(n),
+    ...extra,
+  });
+  const colourOf = (s: GameState, playerId: string) =>
+    effectiveColour(s.players.find((p) => p.id === playerId)!);
+  const errorCode = (fn: () => unknown) => {
+    try {
+      fn();
+    } catch (e) {
+      return (e as EngineError).code;
+    }
+    return undefined;
+  };
+
+  it("gives the host the first free colour, or their first preference", () => {
+    expect(colourOf(createTable("ABC234", base, id(1), T0), "p1")).toBe(0);
+    expect(colourOf(createTable("ABC234", base, id(1), T0, [9, 4]), "p1")).toBe(9);
+  });
+
+  it("resolves preferences in join order: the later joiner falls to their next choice", () => {
+    let s = createTable("ABC234", base, id(1), T0, [5, 2]);
+    s = act(s, "p2", join(2, { colourPrefs: [5, 2] }), T0);
+    s = act(s, "p3", join(3, { colourPrefs: [5, 2] }), T0);
+    s = act(s, "p4", join(4, { colourPrefs: [5, 2] }), T0);
+    expect(["p1", "p2", "p3", "p4"].map((p) => colourOf(s, p))).toEqual([5, 2, 0, 1]);
+  });
+
+  it("gives a joiner whose preferences are all taken the lowest free colour", () => {
+    let s = lobby(2);
+    s = act(s, "p3", join(3, { colourPrefs: [0, 1] }), T0);
+    expect(colourOf(s, "p3")).toBe(2);
+  });
+
+  it("lets a guest take a chosen free colour and rejects a taken one", () => {
+    const s = lobby(2);
+    expect(colourOf(act(s, "p3", join(3, { colour: 11 }), T0), "p3")).toBe(11);
+    expect(errorCode(() => act(s, "p3", join(3, { colour: 0 }), T0))).toBe("colour_taken");
+  });
+
+  it("rejects a colour outside the palette", () => {
+    expect(errorCode(() => act(lobby(2), "p3", join(3, { colour: 16 }), T0))).toBe("bad_request");
+  });
+
+  it("keeps colours unique when twelve players share the same preferences", () => {
+    let s = createTable("ABC234", { ...base, maxPlayers: 12 }, id(1), T0, [3]);
+    for (let n = 2; n <= 12; n++) s = act(s, `p${n}`, join(n, { colourPrefs: [3] }), T0);
+    expect(new Set(s.players.map((p) => effectiveColour(p))).size).toBe(12);
+  });
+
+  it("frees the colour of a player who leaves the lobby", () => {
+    let s = lobby(2);
+    const freed = colourOf(s, "p2");
+    s = act(s, "p2", { type: "leave" }, T0);
+    expect(colourOf(act(s, "p3", join(3, { colour: freed }), T0), "p3")).toBe(freed);
+  });
+
+  it("treats a player saved without a colour as holding their seat colour", () => {
+    const s = lobby(2);
+    for (const p of s.players) delete p.colour;
+    expect(s.players.map((p) => effectiveColour(p))).toEqual([0, 1]);
+    expect(errorCode(() => act(s, "p3", join(3, { colour: 1 }), T0))).toBe("colour_taken");
+    expect(colourOf(act(s, "p3", join(3), T0), "p3")).toBe(2);
+  });
+
+  it("choose_colour switches to a free colour and bumps seq so other clients notice", () => {
+    const s = lobby(2);
+    const { state, events } = applyAction(
+      s,
+      "p2",
+      { type: "choose_colour", colour: 9 },
+      T0 + 1,
+      seededRng(42),
+    );
+    expect(colourOf(state, "p2")).toBe(9);
+    expect(state.seq).toBeGreaterThan(s.seq);
+    expect(events).toEqual([expect.objectContaining({ type: "colour_changed", playerId: "p2", colour: 9 })]);
+  });
+
+  it("choose_colour on your own colour is a no-op with no event", () => {
+    const s = lobby(2);
+    const mine = colourOf(s, "p2");
+    const { state, events } = applyAction(
+      s,
+      "p2",
+      { type: "choose_colour", colour: mine },
+      T0,
+      seededRng(42),
+    );
+    expect(events).toEqual([]);
+    expect(state.seq).toBe(s.seq);
+  });
+
+  it("choose_colour rejects a taken colour, a started game and a stranger", () => {
+    const s = lobby(2);
+    expect(errorCode(() => act(s, "p2", { type: "choose_colour", colour: colourOf(s, "p1") }, T0))).toBe(
+      "colour_taken",
+    );
+    expect(errorCode(() => act(started(2), "p2", { type: "choose_colour", colour: 9 }, T0))).toBe(
+      "already_started",
+    );
+    expect(errorCode(() => act(s, "p9", { type: "choose_colour", colour: 9 }, T0))).toBe("not_a_player");
+  });
+
+  it("exposes the colour in the view, and a switch is visible to every viewer", () => {
+    const s = act(lobby(2), "p2", { type: "choose_colour", colour: 9 }, T0);
+    expect(toView(s, null).players.map((p) => p.colour)).toEqual([0, 9]);
   });
 });

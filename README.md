@@ -35,6 +35,12 @@ browser ── GET /api/tables/ABC234?since=41 (every ~1s while playing) ──�
 - **Kick vote**: when a turn times out, that player's turn is held (it no longer passes on). The other players can
   vote unanimously to kick them (`POST /api/tables/ABC234/vote-kick`); a kicked player becomes a spectator until the
   game ends.
+- **Player colours**: 16 named colours (`PALETTE` in `src/lib/protocol/colours.ts`, mirrored as `--seat-N` in
+  `globals.css`; a test checks they stay far apart and readable in both themes). A colour is player state, unique
+  per table, taken on join in join order: a signed-in player gets the first free one of their up to three ranked
+  preferences (`profiles.colour_prefs`, `GET`/`PUT /api/me/colours`), else the lowest free colour; a guest picks a free
+  colour. Anyone in the lobby can switch (`POST /api/tables/ABC234/colour`, `colour_taken` if someone has it); colours
+  are fixed once the game starts. Tables saved before colours existed show the seat number as the colour.
 - **Public tables**: a host can list a table at creation (`isPublic`, fixed afterwards, private by default). `games`
   mirrors `is_public`, `player_count` and `host_name` in the same save statement, and `GET /api/public-tables`
   (no sign-in, polled every 5s by the home page) lists public lobbies and games in progress from `games` alone:

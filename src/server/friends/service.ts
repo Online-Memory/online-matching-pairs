@@ -27,6 +27,13 @@ function handleBase(name: string): string {
   return base.length >= 3 ? base : "player";
 }
 
+/** Drivers return a smallint[] either as an array or as its text form (`{1,2}`). */
+function parsePrefs(value: unknown): number[] {
+  if (Array.isArray(value)) return value.map(Number);
+  if (typeof value === "string") return value.replace(/[{}]/g, "").split(",").filter(Boolean).map(Number);
+  return [];
+}
+
 /** What the friends feature needs to know about tables. `TableService` implements it. */
 export interface Seating {
   isSeatedInLobby(code: string, userId: string): Promise<boolean>;
@@ -81,6 +88,26 @@ export class FriendsService {
       throw error;
     }
     return handle;
+  }
+
+  /** The colours a player would like, most wanted first. Empty when they never chose any. */
+  async colourPrefs(userId: string): Promise<number[]> {
+    const rows = await this.db.query<{ colour_prefs: unknown }>(
+      `SELECT colour_prefs FROM profiles WHERE user_id = $1`,
+      [userId],
+    );
+    return parsePrefs(rows[0]?.colour_prefs);
+  }
+
+  /** `prefs` is already validated (the route runs it through `colourPrefsSchema`). */
+  async setColourPrefs(account: Account, prefs: number[]): Promise<number[]> {
+    await this.touch(account);
+    // Sent as an array literal string: it works the same on every driver, and the values are validated integers.
+    await this.db.query(`UPDATE profiles SET colour_prefs = $2::smallint[] WHERE user_id = $1`, [
+      account.id,
+      `{${prefs.join(",")}}`,
+    ]);
+    return prefs;
   }
 
   /** `handle` is already canonical (the route runs it through `handleSchema`). */
