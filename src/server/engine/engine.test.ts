@@ -1,6 +1,8 @@
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 
+import { boardColumns } from "@/lib/protocol";
+
 import {
   applyAction,
   createTable,
@@ -147,6 +149,39 @@ describe("flip", () => {
     expect(state.board[a]!.state).toBe("hidden");
     expect(state.turn?.playerId).toBe("p2");
     expect(state.lockUntil).toBeNull();
+  });
+
+  it("a solo player can flip a missed pair back early without flipping anything new", () => {
+    let s = started(1);
+    const [a, b] = mismatch(s);
+    s = act(s, "p1", { type: "flip", tileId: a }, T0 + 1000);
+    s = act(s, "p1", { type: "flip", tileId: b }, T0 + 2000);
+    expect(s.lockUntil).not.toBeNull();
+
+    // Flipping a new tile is still refused: only the explicit dismissal ends the wait.
+    const c = s.board.findIndex((t) => t.state === "hidden");
+    expectError(() => act(s, "p1", { type: "flip", tileId: c }, T0 + 2400), "locked");
+
+    const result = applyAction(s, "p1", { type: "dismiss_miss" }, T0 + 2500, seededRng(1));
+    expect(result.events.map((e) => e.type)).toEqual(["tiles_hidden", "turn_changed"]);
+    s = result.state;
+    expect(s.lockUntil).toBeNull();
+    expect(s.board[a]!.state).toBe("hidden");
+    expect(s.board[b]!.state).toBe("hidden");
+    expect(s.revealed).toEqual([]);
+    expect(s.turn).toMatchObject({ playerId: "p1", deadline: T0 + 2500 + 20_000 });
+
+    // A late duplicate request is harmless.
+    expect(applyAction(s, "p1", { type: "dismiss_miss" }, T0 + 2600, seededRng(1)).events).toEqual([]);
+  });
+
+  it("dismissing a missed pair is refused with other players at the table", () => {
+    let s = started(2);
+    const [a, b] = mismatch(s);
+    s = act(s, "p1", { type: "flip", tileId: a }, T0 + 1000);
+    s = act(s, "p1", { type: "flip", tileId: b }, T0 + 2000);
+    expectError(() => act(s, "p1", { type: "dismiss_miss" }, T0 + 2500), "locked");
+    expectError(() => act(s, "p2", { type: "dismiss_miss" }, T0 + 2500), "locked");
   });
 
   it("keeps a missed pair face up for the whole lock, then hides it and passes the turn", () => {
@@ -456,6 +491,24 @@ describe("invariants", () => {
         expect([...faces].sort((a, b) => a - b)).toEqual(
           Array.from({ length: pairs * 2 }, (_, i) => Math.floor(i / 2) + 1),
         );
+      }),
+    );
+  });
+
+  it("shuffle never leaves a pair touching on boards big enough to avoid it", () => {
+    fc.assert(
+      fc.property(fc.integer(), fc.integer({ min: 8, max: 50 }), (seed, pairs) => {
+        const faces = shuffleBoard(pairs, seededRng(seed));
+        const cols = boardColumns(faces.length);
+        faces.forEach((face, i) => {
+          const r = Math.floor(i / cols);
+          const c = i % cols;
+          faces.forEach((other, j) => {
+            if (j === i || other !== face) return;
+            const near = Math.abs(Math.floor(j / cols) - r) <= 1 && Math.abs((j % cols) - c) <= 1;
+            expect(near).toBe(false);
+          });
+        });
       }),
     );
   });

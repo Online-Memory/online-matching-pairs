@@ -23,7 +23,8 @@ export function pollDelay(view: TableView | null, hidden: boolean, override?: nu
 const POLL_OVERRIDE = Number(process.env.NEXT_PUBLIC_POLL_MS) || undefined;
 const MAX_BACKOFF_MS = 10_000;
 
-export type TableAction = "join" | "start" | "flip" | "pause" | "resume" | "voteKick" | "leave" | "colour";
+export type TableAction =
+  "join" | "start" | "flip" | "dismissMiss" | "pause" | "resume" | "voteKick" | "leave" | "colour";
 
 export type TableHandle = {
   view: TableView | null;
@@ -42,6 +43,8 @@ export type TableHandle = {
   chooseColour: (colour: number) => Promise<void>;
   start: () => Promise<void>;
   flip: (tileId: number) => Promise<void>;
+  /** Solo games only: flips a missed pair back before its timer runs out. */
+  dismissMiss: () => Promise<void>;
   /** Pauses the game for up to a minute (up to 5 times per player). */
   pause: () => Promise<void>;
   /** Ends a pause early; only the player who paused can. */
@@ -192,6 +195,7 @@ export function useTable(code: string): TableHandle {
     chooseColour: async (colour) => void (await run("colour", (s) => api.chooseColour(code, s, colour))),
     start: async () => void (await run("start", (s) => api.start(code, s))),
     flip: async (tileId) => void (await run("flip", (s) => api.flip(code, s, tileId))),
+    dismissMiss: async () => void (await run("dismissMiss", (s) => api.dismissMiss(code, s))),
     pause: async () => void (await run("pause", (s) => api.pause(code, s))),
     resume: async () => void (await run("resume", (s) => api.resume(code, s))),
     voteKick: async () => void (await run("voteKick", (s) => api.voteKick(code, s))),

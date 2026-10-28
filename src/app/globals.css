@@ -2212,6 +2212,12 @@ a {
   flex: 1 1 12rem;
 }
 
+/* A flex item would shrink to one column; the picker takes the whole first row instead. */
+.join-panel .colour-picker {
+  order: -1;
+  flex: 1 1 100%;
+}
+
 /* ----------------------------------------------------------------- results */
 
 .results {

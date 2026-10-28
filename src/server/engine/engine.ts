@@ -1,6 +1,7 @@
 import "server-only";
 
 import {
+  boardColumns,
   PALETTE_SIZE,
   type ErrorCode,
   type PublicEvent,
@@ -28,6 +29,7 @@ export type Action =
   | { type: "choose_colour"; colour: number }
   | { type: "start" }
   | { type: "flip"; tileId: number }
+  | { type: "dismiss_miss" }
   | { type: "pause" }
   | { type: "resume" }
   | { type: "vote_kick" }
@@ -116,12 +118,54 @@ function newPlayer(identity: Identity, seat: number, colour: number, now: number
   };
 }
 
+/** Random swaps tried when pulling matching pairs apart; far more than any board size needs. */
+const MAX_SPREAD_SWAPS = 2_000;
+
 /** Fisher-Yates over [1,1,2,2,...]: each face appears exactly twice, positions uniform. */
-export function shuffleBoard(pairs: number, rng: Rng): number[] {
+function fisherYates(pairs: number, rng: Rng): number[] {
   const faces = Array.from({ length: pairs * 2 }, (_, i) => Math.floor(i / 2) + 1);
   for (let i = faces.length - 1; i > 0; i--) {
     const j = rng(i + 1);
     [faces[i], faces[j]] = [faces[j]!, faces[i]!];
+  }
+  return faces;
+}
+
+/** Number of matching pairs whose tiles touch (sideways, up/down or diagonally) on the board grid. */
+function touchingPairs(faces: number[], cols: number): number {
+  let touching = 0;
+  for (let i = 0; i < faces.length; i++) {
+    const col = i % cols;
+    // Only look right and down: each neighbouring pair of cells is then visited once.
+    const neighbours = [
+      col < cols - 1 ? i + 1 : -1,
+      i + cols,
+      col > 0 ? i + cols - 1 : -1,
+      col < cols - 1 ? i + cols + 1 : -1,
+    ];
+    for (const n of neighbours) if (n >= 0 && n < faces.length && faces[n] === faces[i]) touching++;
+  }
+  return touching;
+}
+
+/**
+ * Shuffled board where the two tiles of a pair are kept apart: a plain shuffle puts about one
+ * pair next to each other, which looks like a lucky free match. After the shuffle, random swaps
+ * that don't add touching pairs are kept until none touch on the grid; boards too small for that
+ * (e.g. 2x2) end with as few as the swaps found.
+ */
+export function shuffleBoard(pairs: number, rng: Rng): number[] {
+  const faces = fisherYates(pairs, rng);
+  const cols = boardColumns(faces.length);
+  let touching = touchingPairs(faces, cols);
+  for (let attempt = 0; attempt < MAX_SPREAD_SWAPS && touching > 0; attempt++) {
+    const i = rng(faces.length);
+    const j = rng(faces.length);
+    if (faces[i] === faces[j]) continue;
+    [faces[i], faces[j]] = [faces[j]!, faces[i]!];
+    const next = touchingPairs(faces, cols);
+    if (next <= touching) touching = next;
+    else [faces[i], faces[j]] = [faces[j]!, faces[i]!];
   }
   return faces;
 }
@@ -154,6 +198,9 @@ export function applyAction(
       break;
     case "flip":
       flip(draft, actorId, action.tileId, now);
+      break;
+    case "dismiss_miss":
+      dismissMiss(draft, actorId, now);
       break;
     case "pause":
       pause(draft, actorId, now);
@@ -291,6 +338,22 @@ function flip(draft: Draft, actorId: string, tileId: number, now: number) {
     );
     // The turn passes when the lock expires (see tick), once the tiles are face down again.
   }
+}
+
+/**
+ * Solo only: ends the flip-back wait early, so the missed pair goes face down and a fresh turn starts.
+ * Nobody else is watching a solo game. Harmless if the lock already ran out while the request was in flight.
+ */
+function dismissMiss(draft: Draft, actorId: string, now: number) {
+  const s = draft.state;
+  if (s.status !== "playing") throw new EngineError("not_playing", "The game is not in progress");
+  if (s.pause) throw new EngineError("paused", "The game is paused");
+  requireNotKicked(requirePlayer(s, actorId));
+  if (s.players.length !== 1) throw new EngineError("locked", "Wait for the tiles to flip back");
+  if (s.lockUntil === null) return;
+  s.lockUntil = null;
+  hideRevealed(draft, now);
+  beginTurn(draft, actorId, now);
 }
 
 function leave(draft: Draft, actorId: string, now: number) {

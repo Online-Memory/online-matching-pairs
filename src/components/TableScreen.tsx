@@ -5,6 +5,7 @@ import { Fragment, useEffect, useRef, useState, type CSSProperties } from "react
 
 import { finishMessage } from "@/lib/client/finish-message";
 import { BURST_COUNT, streakTier, type StreakTier } from "@/lib/client/streak-tier";
+import { useDismissMiss } from "@/lib/client/use-dismiss-miss";
 import { useIdleLevel } from "@/lib/client/use-idle-level";
 import { useMe } from "@/lib/client/use-me";
 import { useTable } from "@/lib/client/use-table";
@@ -31,6 +32,7 @@ export function TableScreen({ code, autoJoin = false }: { code: string; autoJoin
   const me = useMe();
   const { view, actionError, clearActionError } = table;
   const idleLevel = useIdleLevel(view, table.serverOffset);
+  useDismissMiss(view, table.dismissMiss, table.pending);
 
   useEffect(() => {
     if (!actionError) return;
@@ -339,7 +341,7 @@ function statusText(view: TableView, myTurn: boolean) {
   if (!view.youId && view.status === "playing") return "You're watching this game";
   if (view.pause) return "Game paused";
   if (view.lockUntil !== null) {
-    return view.turn?.playerId === view.youId ? "No match. Flipping back…" : "No match. Flipping back…";
+    return view.players.length === 1 ? "No match. Click anywhere to flip back." : "No match. Flipping back…";
   }
   if (view.turn?.timedOut) {
     return view.turn.playerId === view.youId
